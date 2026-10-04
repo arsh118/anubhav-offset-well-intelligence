@@ -44,7 +44,7 @@ export function Dashboard() {
     return (data?.nearby ?? []).map(({ well, distance_km }) => {
       const match = matchingById.get(well.id)
       return {
-        id: well.id, well_name: well.well_name, field: well.field, latitude: well.latitude, longitude: well.longitude,
+        id: well.id, well_name: well.well_name, field: well.field, formation_name: well.current_formation?.name ?? null, latitude: well.latitude, longitude: well.longitude,
         distance_km, matching_event_count: match?.matching_event_count ?? 0, best_relevance_score: match?.best_relevance_score ?? 0, event_ids: match?.event_ids ?? [],
       }
     })
@@ -117,7 +117,7 @@ export function Dashboard() {
       <div className="dashboard-spatial-grid">
         <section className="panel map-panel">
           <div className="panel-heading"><div><div className="eyebrow">OFFSET WELL MAP</div><h2>Nearby wells</h2></div><span className="panel-meta"><i className="map-radius-icon" />{radiusKm} km radius</span></div>
-          <div className="map-wrap"><OffsetMap activeWell={activeWell} offsets={mapOffsets} events={displayedMatches} radiusKm={radiusKm} /></div>
+          <div className="map-wrap"><OffsetMap activeWell={activeWell} offsets={mapOffsets} radiusKm={radiusKm} /></div>
           <div className="map-legend"><span><i className="legend-active" />Active well</span><span><i className="legend-offset" />Offset well</span><span><i className="legend-radius" />Search radius</span></div>
         </section>
         <section className="panel nearby-list-panel" aria-labelledby="nearby-list-title">
@@ -134,7 +134,7 @@ export function Dashboard() {
         </section>
       </div>
 
-      <DepthCorrelation activeWell={activeWell} events={displayedMatches} depthWindowM={depthWindowM} onSelect={(event) => { setSelectedMatch(event); setSelectedAlert(null) }} />
+      <DepthCorrelation activeWell={activeWell} events={displayedMatches} depthWindowM={depthWindowM} eyebrow="DEPTH INTELLIGENCE PREVIEW" title="Historical events across measured depth" onSelect={(event) => { setSelectedMatch(event); setSelectedAlert(null) }} />
       <LiveIntelligence activeWellId={activeWellId} radiusKm={radiusKm} depthWindowM={depthWindowM} />
 
       <details className="dashboard-secondary-details"><summary>Historical records and supporting analysis <span>{displayedMatches.length} matches</span></summary>

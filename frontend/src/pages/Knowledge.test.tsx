@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AppProvider } from '../lib/AppContext'
-import type { Document, Evidence, Formation, Well, WellEvent } from '../lib/api'
+import type { Correlation, Document, Evidence, Formation, Well, WellEvent } from '../lib/api'
 import { KnowledgePage } from './Knowledge'
 
 const document: Document = {
@@ -35,18 +35,27 @@ const event: WellEvent = {
   source_document: document, evidence: [evidence],
 }
 
+const correlation = {
+  active_well: { id: activeWell.id, well_name: activeWell.well_name, field: activeWell.field, latitude: activeWell.latitude, longitude: activeWell.longitude, active_depth_m: 2842, active_formation: 'X Formation' },
+  radius_km: 20, depth_window_m: 100, heuristic_weights: {}, matched_wells: [],
+  historical_events: [{ event_id: event.id, offset_well: { id: event.well_id, well_name: event.well_name, field: activeWell.field, latitude: 27.46, longitude: 95.21 }, distance_km: 4.2, historical_depth_m: 2875, active_depth_m: 2842, depth_difference_m: 33, absolute_depth_difference_m: 33, depth_band: 'near', formation: event.formation, formation_match: 'exact', event_type: event.event_type, event_title: event.event_title, description: event.description, consequence: event.consequence, mitigation: event.mitigation, relevance_score: 91, relevance_score_normalized: .91, relevance_band: 'high', components: {}, source_document: document, source_page: 3, evidence_excerpt: evidence.excerpt, source_confidence: .96, existing_alert: null, explanation: 'Same formation and nearby depth.' }],
+  total_matching_events: 1, active_formation_interval: null, active_drilling_parameters: null, comparable_wells: [], data_notice: 'Representative Synthetic Demo Data', message: null,
+} as unknown as Correlation
+
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
 })
 
 describe('knowledge repository presentation', () => {
-  it('loads the judging query and shows the event, challenge, mitigation, and traceable source evidence', async () => {
+  it('shows a compact, relevant event row and opens the shared source evidence drawer', async () => {
     const fetchMock = vi.fn().mockImplementation((input: string) => {
       const payload = input.endsWith('/wells?limit=500') ? [activeWell]
         : input.endsWith('/health') ? { status: 'ok', database: 'connected' }
           : input.endsWith('/formations') ? [formation]
+            : input.includes('/intelligence/well-01/correlation') ? correlation
             : input.includes('/knowledge/search') ? [event]
+              : input.includes('/events/event-02/evidence') ? [evidence]
               : []
       return Promise.resolve({ ok: true, status: 200, json: async () => payload })
     })
@@ -56,18 +65,16 @@ describe('knowledge repository presentation', () => {
       <AppProvider><Routes><Route path="/knowledge" element={<KnowledgePage />} /></Routes></AppProvider>
     </MemoryRouter>)
 
-    expect(await screen.findByText('Lost Circulation')).toBeTruthy()
-    expect(screen.getByText('ANB-04')).toBeTruthy()
-    expect(screen.getByText('2,875 m')).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Historical Event Explorer' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'WELL' })).toBeTruthy()
+    expect(screen.getByRole('columnheader', { name: 'EVENT' })).toBeTruthy()
+    expect(screen.getByRole('row', { name: /Open Mud loss reported in X Formation evidence from ANB-04/ })).toBeTruthy()
+    expect(await screen.findByText('91')).toBeTruthy()
+    fireEvent.click(screen.getByRole('row', { name: /Open Mud loss reported in X Formation evidence from ANB-04/ }))
+    expect(await screen.findByRole('dialog', { name: 'Historical event evidence' })).toBeTruthy()
     expect(screen.getByText('DDR-ANB-02-2024-07.pdf')).toBeTruthy()
-    expect(screen.getByText('Seeded · p.3')).toBeTruthy()
-    expect(screen.getByText('MITIGATION')).toBeTruthy()
-    expect(screen.getAllByText('The report describes a loss-control treatment followed by monitored circulation.').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('X Formation').length).toBeGreaterThanOrEqual(2)
-    fireEvent.click(screen.getByText('Event and evidence details'))
-    expect(screen.getByText('Mud loss reported in X Formation')).toBeTruthy()
-    expect(screen.getByText((_text, element) => element?.tagName === 'P' && Boolean(element.textContent?.includes('A separate offset record notes mud loss deeper in X Formation.')))).toBeTruthy()
     expect(screen.getByText((_text, element) => element?.tagName === 'BLOCKQUOTE' && Boolean(element.textContent?.includes(evidence.excerpt)))).toBeTruthy()
+    expect(screen.getByText('Recorded mitigation')).toBeTruthy()
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/knowledge/search?q=mud+losses'))).toBe(true)
   })
 })

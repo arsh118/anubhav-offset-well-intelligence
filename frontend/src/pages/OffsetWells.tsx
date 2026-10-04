@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowRight, LocateFixed, MapPin, Search } from 'lucide-react'
-import { api, queryString, type Correlation, type NearbyWell, type OffsetMatch, type OffsetWellSummary } from '../lib/api'
+import { useSearchParams } from 'react-router-dom'
+import { api, queryString, type Correlation, type DrillingMeasurement, type LiveFeed, type NearbyWell, type OffsetMatch, type OffsetWellSummary } from '../lib/api'
 import { useApp } from '../lib/AppContext'
 import { formatDepth, formatDistance, humanize } from '../lib/format'
 import { EvidenceDrawer } from '../components/EvidenceDrawer'
 import { ActiveWellGate, EmptyState, ErrorState, Loading } from '../components/Feedback'
 import { OffsetMap } from '../components/OffsetMap'
+import { OffsetDepthIntelligence } from '../components/OffsetDepthIntelligence'
 import { PageHeading } from './Dashboard'
 
-type OffsetData = { nearby: NearbyWell[]; correlation: Correlation }
+type OffsetData = { nearby: NearbyWell[]; correlation: Correlation; measurements: DrillingMeasurement[] }
 
 export function OffsetWellsPage() {
   const { activeWell, activeWellId, radiusKm, depthWindowM, wellState } = useApp()
+  const [searchParams] = useSearchParams()
+  const requestedWellId = searchParams.get('well') ?? undefined
   const [data, setData] = useState<OffsetData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -23,24 +27,27 @@ export function OffsetWellsPage() {
     if (!activeWellId) return
     setLoading(true); setError(null)
     try {
-      const [nearby, correlation] = await Promise.all([
+      const [nearby, correlation, feed] = await Promise.all([
         api<{ items: NearbyWell[] }>(`/wells/${activeWellId}/nearby${queryString({ radius_km: radiusKm, limit: 200 })}`),
         api<Correlation>(`/intelligence/${activeWellId}/correlation${queryString({ radius_km: radiusKm, depth_window_m: depthWindowM, limit: 500 })}`),
+        api<LiveFeed>(`/live/${activeWellId}?limit=100`).catch(() => null),
       ])
-      setData({ nearby: nearby.items, correlation })
-      setSelectedWellId((current) => current && nearby.items.some((item) => item.well.id === current)
-        ? current
-        : correlation.historical_events[0]?.offset_well.id ?? nearby.items[0]?.well.id)
+      setData({ nearby: nearby.items, correlation, measurements: feed?.states.map((row) => row.measurement) ?? [] })
+      setSelectedWellId((current) => requestedWellId && nearby.items.some((item) => item.well.id === requestedWellId)
+        ? requestedWellId
+        : current && nearby.items.some((item) => item.well.id === current)
+          ? current
+          : correlation.historical_events[0]?.offset_well.id ?? nearby.items[0]?.well.id)
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to load nearby wells.') }
     finally { setLoading(false) }
-  }, [activeWellId, radiusKm, depthWindowM])
+  }, [activeWellId, radiusKm, depthWindowM, requestedWellId])
   useEffect(() => { void load() }, [load])
 
   const offsets = useMemo<OffsetWellSummary[]>(() => {
     const matching = new Map((data?.correlation.matched_wells ?? []).map((well) => [well.id, well]))
     return (data?.nearby ?? []).map(({ well, distance_km }) => {
       const result = matching.get(well.id)
-      return { id: well.id, well_name: well.well_name, field: well.field, latitude: well.latitude, longitude: well.longitude, distance_km, matching_event_count: result?.matching_event_count ?? 0, best_relevance_score: result?.best_relevance_score ?? 0, event_ids: result?.event_ids ?? [] }
+      return { id: well.id, well_name: well.well_name, field: well.field, formation_name: well.current_formation?.name ?? null, latitude: well.latitude, longitude: well.longitude, distance_km, matching_event_count: result?.matching_event_count ?? 0, best_relevance_score: result?.best_relevance_score ?? 0, event_ids: result?.event_ids ?? [] }
     })
   }, [data])
   const filtered = offsets.filter((well) => `${well.well_name} ${well.field ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()))
@@ -54,7 +61,7 @@ export function OffsetWellsPage() {
     {loading && !data ? <div className="panel loading-panel"><Loading label="Locating nearby offset wells" /></div> : data && <>
       <div className="offset-overview offset-overview-compact"><strong>{data.nearby.length} nearby wells</strong><span>{activeWell.well_name} · {formatDepth(activeWell.current_depth)} · {activeWell.current_formation?.name ?? 'Formation unavailable'}</span><details><summary>Search method</summary><p>Distances use well coordinates. Event matches also account for formation and depth.</p></details></div>
       <section className="panel offset-map-panel"><div className="panel-heading"><div><div className="eyebrow">NEARBY WELLS</div><h2>Spatial relationship</h2></div><div className="map-key-compact"><span><i className="legend-active" />Active well</span><span><i className="legend-offset" />Offset wells</span><span><i className="legend-radius" />Radius</span></div></div>
-        <div className="offset-map-layout"><div className="offset-map-area"><OffsetMap activeWell={activeWell} offsets={offsets} events={data.correlation.historical_events} radiusKm={radiusKm} selectedWellId={selectedWellId} onSelectWell={setSelectedWellId} /></div><div className="offset-map-list"><div className="offset-list-title"><span>NEARBY WELLS</span><span>{offsets.length} TOTAL</span></div>{filtered.length === 0 ? <EmptyState title="No nearby wells found" detail="There are no offset wells inside the current radius." /> : filtered.map((well) => <button className={`offset-list-row ${well.id === selectedWellId ? 'selected' : ''}`} key={well.id} onClick={() => setSelectedWellId(well.id)}><span className="offset-well-pin"><MapPin size={15} /></span><span className="offset-well-name"><strong>{well.well_name}</strong></span><span className="offset-distance">{formatDistance(well.distance_km)}<small>{well.matching_event_count ? `${well.matching_event_count} events` : 'No depth match'}</small></span></button>)}</div></div>
+        <div className="offset-map-layout"><div className="offset-map-area"><OffsetMap activeWell={activeWell} offsets={offsets} radiusKm={radiusKm} selectedWellId={selectedWellId} onSelectWell={setSelectedWellId} /></div><div className="offset-map-list"><div className="offset-list-title"><span>NEARBY WELLS</span><span>{offsets.length} TOTAL</span></div>{filtered.length === 0 ? <EmptyState title="No nearby wells found" detail="There are no offset wells inside the current radius." /> : filtered.map((well) => <button className={`offset-list-row ${well.id === selectedWellId ? 'selected' : ''}`} key={well.id} onClick={() => setSelectedWellId(well.id)}><span className="offset-well-pin"><MapPin size={15} /></span><span className="offset-well-name"><strong>{well.well_name}</strong></span><span className="offset-distance">{formatDistance(well.distance_km)}<small>{well.matching_event_count ? `${well.matching_event_count} events` : 'No depth match'}</small></span></button>)}</div></div>
       </section>
       <details className="offset-register-details"><summary>Offset register <span>{filtered.length} wells</span></summary><section className="panel offset-register-panel"><div className="panel-heading"><div><div className="eyebrow">OFFSET REGISTER</div><h2>Well and event relevance</h2></div><div className="table-search"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Filter wells" /></div></div>
         {filtered.length === 0 ? <EmptyState title="No offset wells in this search" detail="Change the well name search or increase the radius using the header control." /> : <div className="data-table-wrap"><table className="data-table"><thead><tr><th>OFFSET WELL</th><th>DISTANCE</th><th>FIELD</th><th>FORMATION OVERLAP</th><th>CORRELATED EVENTS</th><th>BEST RELEVANCE</th><th></th></tr></thead><tbody>{filtered.map((well) => {
@@ -63,9 +70,18 @@ export function OffsetWellsPage() {
           return <tr key={well.id} onClick={() => setSelectedWellId(well.id)} className={well.id === selectedWellId ? 'row-selected' : ''}><td><strong>{well.well_name}</strong><small className="table-subline">{item?.well.current_depth ? formatDepth(item.well.current_depth) : 'Historical well'}</small></td><td>{formatDistance(well.distance_km)}</td><td>{well.field ?? '—'}</td><td><span className={`match-indicator ${formationMatch ? 'yes' : formationMatch === false ? 'no' : 'unknown'}`}><i />{formationMatch === true ? 'Formation match' : formationMatch === false ? 'Different' : 'Unknown'}</span></td><td>{well.matching_event_count || '—'}</td><td>{well.best_relevance_score ? `${Math.round(well.best_relevance_score)} / 100` : '—'}</td><td><button className="table-action" onClick={(event) => { event.stopPropagation(); setSelectedWellId(well.id) }}>Inspect <ArrowRight size={13} /></button></td></tr>
         })}</tbody></table></div>}
       </section></details>
-      {selectedWell && <section className="panel selected-offset-panel"><div className="panel-heading"><div><div className="eyebrow">SELECTED OFFSET · {formatDistance(selectedWell.distance_km)}</div><h2>{selectedWell.well_name}</h2></div><span className="record-count">{selectedEvents.length} CORRELATED EVENTS</span></div>
+      {data.correlation.comparable_wells.length > 0 && <OffsetDepthIntelligence
+        activeWell={activeWell}
+        activeMeasurements={data.measurements}
+        correlation={data.correlation}
+        depthWindowM={depthWindowM}
+        selectedOffsetId={selectedWellId}
+        onSelectOffset={setSelectedWellId}
+        onSelectEvent={setSelected}
+      />}
+      {selectedWell && <details id="offset-events" className="selected-offset-details"><summary>{selectedWell.well_name} event evidence <span>{selectedEvents.length} correlated events</span></summary><section className="panel selected-offset-panel">
         {selectedEvents.length === 0 ? <EmptyState title="No significant historical match in current depth window" detail="This nearby well remains spatially relevant, but no event currently meets the depth and formation criteria." /> : <div className="signal-register">{selectedEvents.map((event) => <button key={event.event_id} className="signal-register-row" onClick={() => setSelected(event)} aria-label={`View evidence for ${event.event_title} in ${event.offset_well.well_name}`}><span className={`event-dot ${event.relevance_band}`} /><span className="signal-register-copy"><strong>{event.event_title}</strong><small>{humanize(event.event_type)} · {event.formation?.name ?? 'Formation unknown'}</small></span><span className="signal-register-depth">{formatDepth(event.historical_depth_m)}<small>{Math.round(event.depth_difference_m)} m from active</small></span><span className={`score-badge ${event.relevance_band}`}>{Math.round(event.relevance_score)}</span><span className="view-evidence-label">View evidence</span></button>)}</div>}
-      </section>}
+      </section></details>}
     </>}
     {selected && <EvidenceDrawer match={selected} relatedMatches={data?.correlation.historical_events} onClose={() => setSelected(null)} />}
   </div>

@@ -6,9 +6,9 @@ import { ErrorState, Loading } from './Feedback'
 import { SourceReference } from './SourceReference'
 
 type AlertDetail = Alert & { historical_event?: WellEvent; notes?: AlertNote[] }
-type Props = { match?: OffsetMatch | null; alert?: Alert | null; relatedMatches?: OffsetMatch[]; onClose: () => void; onUpdated?: () => void }
+type Props = { match?: OffsetMatch | null; alert?: Alert | null; event?: WellEvent | null; relatedMatches?: OffsetMatch[]; onClose: () => void; onUpdated?: () => void }
 
-export function EvidenceDrawer({ match, alert, relatedMatches = [], onClose, onUpdated }: Props) {
+export function EvidenceDrawer({ match, alert, event: sourceEvent, relatedMatches = [], onClose, onUpdated }: Props) {
   const [detail, setDetail] = useState<AlertDetail | null>(alert as AlertDetail | null)
   const [evidence, setEvidence] = useState<Evidence[]>([])
   const [loading, setLoading] = useState(true)
@@ -17,7 +17,7 @@ export function EvidenceDrawer({ match, alert, relatedMatches = [], onClose, onU
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  const eventId = detail?.historical_event_id ?? match?.event_id
+  const eventId = detail?.historical_event_id ?? match?.event_id ?? sourceEvent?.id
   const alertId = alert?.id
   useEffect(() => {
     let live = true
@@ -40,7 +40,7 @@ export function EvidenceDrawer({ match, alert, relatedMatches = [], onClose, onU
     return () => { live = false }
   }, [alertId, eventId])
 
-  const event = detail?.historical_event
+  const event = detail?.historical_event ?? sourceEvent
   const title = event?.event_title ?? match?.event_title ?? 'Historical event'
   const sourceWell = event?.well_name ?? match?.offset_well.well_name ?? 'Offset well'
   const depth = event?.measured_depth ?? match?.historical_depth_m
@@ -60,7 +60,7 @@ export function EvidenceDrawer({ match, alert, relatedMatches = [], onClose, onU
   const depthDifference = match?.depth_difference_m ?? alert?.depth_difference_m
   const formationMatch = match?.formation_match ?? (alert?.formation_match ? 'matched' : 'unknown')
   const sameTypeWells = new Set(relatedMatches
-    .filter((item) => item.event_id !== match?.event_id && item.event_type === (event?.event_type ?? match?.event_type) && item.offset_well.id !== (event?.well_id ?? match?.offset_well.id))
+    .filter((item) => item.event_id !== match?.event_id && item.event_type === (event?.event_type ?? match?.event_type) && item.offset_well.id !== (event?.well_id ?? match?.offset_well.id ?? ''))
     .map((item) => item.offset_well.id))
 
   const sourceHrefEventId = event?.id ?? match?.event_id ?? alert?.historical_event_id

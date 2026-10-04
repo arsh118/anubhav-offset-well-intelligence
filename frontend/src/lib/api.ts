@@ -105,6 +105,7 @@ export type OffsetWellSummary = {
   id: string
   well_name: string
   field: string | null
+  formation_name?: string | null
   latitude: number | null
   longitude: number | null
   distance_km: number

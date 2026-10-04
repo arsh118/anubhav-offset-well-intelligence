@@ -2,9 +2,9 @@ import { ArrowRight, ChevronRight, Ruler } from 'lucide-react'
 import type { OffsetMatch, Well } from '../lib/api'
 import { formatDepth, humanize, signedDepth } from '../lib/format'
 
-type Props = { activeWell: Well; events: OffsetMatch[]; depthWindowM: number; onSelect: (event: OffsetMatch) => void }
+type Props = { activeWell: Well; events: OffsetMatch[]; depthWindowM: number; onSelect: (event: OffsetMatch) => void; eyebrow?: string; title?: string }
 
-export function DepthCorrelation({ activeWell, events, depthWindowM, onSelect }: Props) {
+export function DepthCorrelation({ activeWell, events, depthWindowM, onSelect, eyebrow = 'DEPTH CORRELATION', title = 'Approaching historical events' }: Props) {
   const activeDepth = activeWell.current_depth ?? events[0]?.active_depth_m ?? 0
   const min = Math.max(0, activeDepth - Math.min(40, depthWindowM * 0.2))
   const max = activeDepth + depthWindowM
@@ -26,7 +26,7 @@ export function DepthCorrelation({ activeWell, events, depthWindowM, onSelect }:
   ]
 
   return <section className="panel correlation-panel" aria-labelledby="depth-correlation-title">
-    <div className="panel-heading"><div><div className="eyebrow">DEPTH CORRELATION</div><h2 id="depth-correlation-title">Approaching historical events</h2></div><span className="panel-meta"><Ruler size={15} />{depthWindowM} m window</span></div>
+    <div className="panel-heading"><div><div className="eyebrow">{eyebrow}</div><h2 id="depth-correlation-title">{title}</h2></div><span className="panel-meta"><Ruler size={15} />{depthWindowM} m window</span></div>
     {visibleEvents.length === 0 ? <div className="correlation-empty"><strong>No matched historical events in this depth window.</strong><span>Adjust the radius or depth window to review more source-backed records.</span></div> : <>
       <div className="depth-chart" aria-label={`Depth correlation from ${Math.round(min)} to ${Math.round(max)} meters`}>
         <div className="depth-scale"><span>{formatDepth(min)}</span><span>{formatDepth(min + span / 2)}</span><span>{formatDepth(max)}</span></div>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Activity, BookOpenText, CirclePause, RotateCcw, TriangleAlert } from 'lucide-react'
 import type { ActiveAlerts, Alert, Correlation, LiveFeed, OffsetMatch, PredictiveRisk } from '../lib/api'
 import { api, queryString } from '../lib/api'
+import { formatDepth } from '../lib/format'
 import { EvidenceDrawer } from './EvidenceDrawer'
 import { EmptyState, ErrorState, Loading } from './Feedback'
 
@@ -113,10 +114,10 @@ export function LiveIntelligence({ activeWellId, radiusKm, depthWindowM }: { act
     </div>
     {loading || (!feed && !feedError) ? <div className="live-loading-skeleton" aria-label="Loading live intelligence" aria-busy="true"><span className="eyebrow">LOADING HISTORICAL INTELLIGENCE</span><div><i /><i /><i /></div></div> : feedError ? <ErrorState message={feedError} retry={() => { setFeedError(null); setFeedRevision((value) => value + 1) }} /> : !state ? <EmptyState title="No simulated drilling samples are seeded for this well." detail="The historical well repository remains available; a live replay sequence is not currently available." /> : <>
       <div className="live-summary-grid">
-        <div><span>DEPTH</span><strong>{state.measurement.measured_depth_m.toLocaleString()} m</strong></div>
+        <div><span>CURRENT DEPTH</span><strong>{formatDepth(state.measurement.measured_depth_m)}</strong></div>
         <div><span>FORMATION</span><strong>{state.formation ?? 'Not recorded'}</strong></div>
         <div><span>STATUS</span><strong>{running ? 'MONITORING' : 'READY'}</strong></div>
-        <div className="live-upcoming-summary"><span>UPCOMING</span>{alertMatch && nearestAlert?.depth_difference_m != null ? <><strong>{formatEventType(alertMatch.event_type)}</strong><small>{nearestAlert.depth_difference_m} m ahead</small><button className="inline-link" onClick={() => setSelectedEvidence(alertMatch)}>View evidence</button></> : <strong>{evaluation ? 'No upcoming precedent' : 'Evaluating'}</strong>}</div>
+        <div className="live-upcoming-summary"><span>NEXT HISTORICAL PRECEDENT</span>{alertMatch && nearestAlert?.depth_difference_m != null ? <><strong>{formatEventType(alertMatch.event_type)}</strong><small>{formatDepth(alertMatch.historical_depth_m)} · {Math.round(nearestAlert.depth_difference_m)} m ahead</small><button className="inline-link" onClick={() => setSelectedEvidence(alertMatch)}>View evidence</button></> : <strong>{evaluation ? 'No upcoming precedent' : 'Evaluating'}</strong>}</div>
       </div>
       <div className="live-risk-summary">
         <div><span>PROTOTYPE RISK SIGNAL</span><strong>{primarySignal ? `${primarySignal.risk_type} · ${Math.round(primarySignal.probability * 100)}%` : evaluation ? 'No available signal' : 'Evaluating'}</strong><small>Engineer review required</small></div>

@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Activity, ArrowRight, Gauge, Layers, MapPin, MoveUpRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { api, queryString, type ActiveAlerts, type Alert, type Correlation, type OffsetMatch, type Well } from '../lib/api'
+import { api, queryString, type ActiveAlerts, type Alert, type Correlation, type DrillingMeasurement, type LiveFeed, type OffsetMatch, type Well } from '../lib/api'
 import { useApp } from '../lib/AppContext'
 import { formatDate, formatDepth, humanize, signedDepth } from '../lib/format'
 import { DepthCorrelation } from '../components/DepthCorrelation'
 import { EvidenceDrawer } from '../components/EvidenceDrawer'
 import { ActiveWellGate, EmptyState, ErrorState, Loading } from '../components/Feedback'
 import { WellCorrelation } from '../components/WellCorrelation'
+import { OffsetDepthIntelligence } from '../components/OffsetDepthIntelligence'
 import { PageHeading } from './Dashboard'
 
-type WellData = { detail: Well; correlation: Correlation; alerts: ActiveAlerts }
+type WellData = { detail: Well; correlation: Correlation; alerts: ActiveAlerts; measurements: DrillingMeasurement[] }
 
 export function ActiveWellPage() {
   const { activeWell, activeWellId, radiusKm, depthWindowM, wellState } = useApp()
@@ -19,6 +20,7 @@ export function ActiveWellPage() {
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<OffsetMatch | null>(null)
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null)
+  const [selectedOffsetId, setSelectedOffsetId] = useState<string | undefined>()
 
   const load = useCallback(async () => {
     if (!activeWellId) return
@@ -26,12 +28,16 @@ export function ActiveWellPage() {
     setError(null)
     try {
       const params = queryString({ radius_km: radiusKm, depth_window_m: depthWindowM })
-      const [detail, correlation, alerts] = await Promise.all([
+      const [detail, correlation, alerts, feed] = await Promise.all([
         api<Well>(`/wells/${activeWellId}`),
         api<Correlation>(`/intelligence/${activeWellId}/correlation${params}`),
         api<ActiveAlerts>(`/alerts/active/${activeWellId}${params}`),
+        api<LiveFeed>(`/live/${activeWellId}?limit=100`).catch(() => null),
       ])
-      setData({ detail, correlation, alerts })
+      setData({ detail, correlation, alerts, measurements: feed?.states.map((row) => row.measurement) ?? [] })
+      setSelectedOffsetId((current) => current && correlation.comparable_wells.some((row) => row.offset_well.id === current)
+        ? current
+        : correlation.comparable_wells[0]?.offset_well.id)
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to load active well details.') }
     finally { setLoading(false) }
   }, [activeWellId, radiusKm, depthWindowM])
@@ -49,9 +55,19 @@ export function ActiveWellPage() {
         <details className="well-metadata-details"><summary>Well metadata</summary><div className="well-metadata"><span>SPUD DATE <strong>{formatDate(data.detail.spud_date)}</strong></span><span>COORDINATES <strong>{data.detail.latitude?.toFixed(4) ?? '—'}, {data.detail.longitude?.toFixed(4) ?? '—'}</strong></span><span>DATA SOURCE <strong>{data.detail.source}</strong></span></div></details>
       </section>
 
-      <div className="active-section-header"><div><div className="eyebrow">HISTORICAL PRECEDENTS</div><h2>Depth correlation</h2></div><span className="record-count">{data.correlation.total_matching_events} MATCHES</span></div>
-      <DepthCorrelation activeWell={data.detail} events={data.correlation.historical_events} depthWindowM={depthWindowM} onSelect={setSelected} />
-      <WellCorrelation correlation={data.correlation} />
+      <OffsetDepthIntelligence
+        activeWell={data.detail}
+        activeMeasurements={data.measurements}
+        correlation={data.correlation}
+        depthWindowM={depthWindowM}
+        selectedOffsetId={selectedOffsetId}
+        onSelectOffset={setSelectedOffsetId}
+        onSelectEvent={setSelected}
+      />
+
+      <details className="active-correlation-details"><summary><span><span className="eyebrow">HISTORICAL PRECEDENTS</span><strong>Full depth correlation and well comparison</strong></span><small>{data.correlation.total_matching_events} matched events</small></summary>
+        <div className="active-correlation-content"><DepthCorrelation activeWell={data.detail} events={data.correlation.historical_events} depthWindowM={depthWindowM} onSelect={setSelected} /><WellCorrelation correlation={data.correlation} /></div>
+      </details>
 
       <details className="active-supporting-details"><summary>Event records and formation intervals</summary><div className="two-column-grid">
         <section className="panel"><div className="panel-heading"><div><div className="eyebrow">HISTORICAL SIGNALS</div><h2>Offset event register</h2></div><span className="record-count">{data.correlation.historical_events.length} EVENTS</span></div>

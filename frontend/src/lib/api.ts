@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '/api'
+const API_BASE = import.meta.env.PROD
+  ? 'https://anubhav-api-6s3x.onrender.com/api'
+  : import.meta.env.VITE_API_BASE_URL ?? '/api'
 
 export type Formation = { id: string; name: string; normalized_name: string; aliases: string[] }
 export type FormationInterval = {

@@ -10,6 +10,6 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: CORS_ALLOWED_ORIGINS
-        sync: false
+        value: https://anubhav-nwis.vercel.app
       - key: UPLOAD_DIR
         value: /tmp/anubhav-uploads

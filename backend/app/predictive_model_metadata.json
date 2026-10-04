@@ -1,0 +1,56 @@
+{
+  "model_name": "ANUBHAV synthetic event-category logistic regression",
+  "model_version": "0.2.0-prototype",
+  "algorithm": "StandardScaler + multinomial LogisticRegression",
+  "random_state": 42,
+  "max_iterations": 1000,
+  "training_data": "Representative Synthetic Demo Data only",
+  "training_method": "Deterministic request-time fit from measured-depth events linked to documents marked both seeded_demo and Representative Synthetic Demo Data",
+  "training_examples": "One event row per representative synthetic WellEvent with measured depth; the nearest active well supplies active-context features, preferring the same field when available.",
+  "label_set": [
+    "Mud Loss",
+    "Stuck Pipe",
+    "Torque Spike",
+    "Overpressure Signal",
+    "Cementing Issue",
+    "Other documented event"
+  ],
+  "training_label_counts": {
+    "Mud Loss": 2,
+    "Stuck Pipe": 1,
+    "Torque Spike": 1,
+    "Overpressure Signal": 1,
+    "Cementing Issue": 1,
+    "Other documented event": 14
+  },
+  "missing_feature_policy": "Missing numeric drilling or similarity values are filled with 0.0; feature order is fixed by feature_set.",
+  "historical_event_frequency_policy": "Training rows count same-well events with the same mapped label and a strictly earlier event timestamp; current, same-time, and future events are excluded. Inference rows use the number of source-backed matches for that category in the current radius/depth window. Both are normalized with min(1, log1p(count) / log1p(5)).",
+  "feature_pipeline": {
+    "formation_similarity": "Exact formation ID = 1.0; alias overlap = 0.85; otherwise 0.0.",
+    "reservoir_similarity": "Mean of available components: exact reservoir zone (0/1), exact pressure label (0/1), max(0, 1 - porosity difference in percentage points / 10), and max(0, 1 - abs(log10((active permeability + 1) / (offset permeability + 1))) / 2).",
+    "depth_proximity": "max(0, 1 - absolute measured-depth difference in meters / 1000).",
+    "spatial_proximity": "max(0, 1 - offset distance in kilometers / 50).",
+    "historical_event_frequency": "min(1, log1p(strictly prior same-well mapped-label count) / log1p(5)).",
+    "pressure_indicator": "typical=0.25, review_indicator=0.75, elevated=1.0; missing or unknown=0.0.",
+    "drilling_parameters": "Use measured mud weight, ECD, ROP, WOB, and torque in stored units; absent values become 0.0.",
+    "scaling": "StandardScaler is fit on the deterministic training matrix for each request."
+  },
+  "evaluation_status": "not_evaluated",
+  "evaluation_notice": "Prototype model — evaluation limited by representative synthetic data.",
+  "evaluation_policy": "No accuracy or holdout score is reported. The 20 usable seeded event rows have sparse target classes, including single-example classes, so an independent well-level holdout would not support a meaningful evaluation.",
+  "calibrated": false,
+  "approved_for_operational_use": false,
+  "feature_set": [
+    "formation_similarity",
+    "reservoir_similarity",
+    "depth_proximity",
+    "spatial_proximity",
+    "historical_event_frequency",
+    "mud_weight_sg",
+    "ecd_sg",
+    "rop_m_per_hr",
+    "wob_kn",
+    "torque_knm",
+    "pressure_indicator"
+  ]
+}

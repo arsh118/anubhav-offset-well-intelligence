@@ -1,0 +1,8 @@
+Representative Synthetic Demo Data — upload test fixture; not an OIL report.
+Well: ANB-07
+Date: 2023-02-04
+
+DRILLING EVENT
+At MD/TVD 1,932/1,755 m in Y Shale, differential sticking left the pipe stuck during a connection.
+Consequence: The operation paused while the crew worked to free the pipe.
+Mitigation: The crew circulated, worked the pipe with controlled movement, and resumed drilling after it freed.

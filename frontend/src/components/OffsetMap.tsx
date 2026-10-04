@@ -1,0 +1,42 @@
+import { Circle, CircleMarker, MapContainer, Marker, Popup, TileLayer, Tooltip } from 'react-leaflet'
+import L from 'leaflet'
+import { Map as MapIcon } from 'lucide-react'
+import type { OffsetMatch, OffsetWellSummary, Well } from '../lib/api'
+import { formatDepth } from '../lib/format'
+
+type Props = { activeWell: Well; offsets: OffsetWellSummary[]; events: OffsetMatch[]; radiusKm: number; selectedWellId?: string; onSelectWell?: (id: string) => void }
+
+function wellIcon(kind: 'active' | 'offset', selected = false) {
+  const className = `map-marker ${kind}${selected ? ' selected' : ''}`
+  return L.divIcon({ className: 'leaflet-anubhav-icon', html: `<span class="${className}"><i></i></span>`, iconSize: [24, 24], iconAnchor: [12, 12] })
+}
+
+export function OffsetMap({ activeWell, offsets, events, radiusKm, selectedWellId, onSelectWell }: Props) {
+  if (activeWell.latitude == null || activeWell.longitude == null) {
+    return <div className="map-empty"><MapIcon size={24} /><strong>Location unavailable</strong><span>Coordinates are not available for this active well.</span></div>
+  }
+
+  const eventWellIds = new Set(events.map((event) => event.offset_well.id))
+  const center: [number, number] = [activeWell.latitude, activeWell.longitude]
+  return <MapContainer key={`${activeWell.id}-${radiusKm}`} center={center} zoom={10} scrollWheelZoom={false} className="leaflet-map">
+    <TileLayer attribution="&copy; OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+    <Circle center={center} radius={radiusKm * 1000} pathOptions={{ color: '#48b995', weight: 1, dashArray: '5 5', fillColor: '#48b995', fillOpacity: 0.035 }} />
+    <Marker position={center} icon={wellIcon('active')} zIndexOffset={1000}><Tooltip direction="top" offset={[0, -8]} permanent>{activeWell.well_name} · Active</Tooltip></Marker>
+    {offsets.map((offset) => {
+      if (offset.latitude == null || offset.longitude == null) return null
+      const hasEvents = eventWellIds.has(offset.id)
+      return <Marker key={offset.id} position={[offset.latitude, offset.longitude]} icon={wellIcon('offset', offset.id === selectedWellId)} eventHandlers={{ click: () => onSelectWell?.(offset.id) }}>
+        <Popup><div className="map-popup"><strong>{offset.well_name}</strong><span>{offset.distance_km.toFixed(1)} km from {activeWell.well_name}</span><span>{hasEvents ? `${offset.matching_event_count} correlated historical event${offset.matching_event_count === 1 ? '' : 's'}` : 'No event in current correlation window'}</span></div></Popup>
+        <Tooltip direction="top" offset={[0, -8]}>{offset.well_name}{hasEvents ? ' · historical match' : ''}</Tooltip>
+      </Marker>
+    })}
+    {events.map((event, index) => {
+      const lat = event.offset_well.latitude
+      const lon = event.offset_well.longitude
+      if (lat == null || lon == null) return null
+      return <CircleMarker key={`${event.event_id}-${index}`} center={[lat, lon]} radius={5} pathOptions={{ color: '#07131d', weight: 1.5, fillColor: event.relevance_band === 'high' ? '#ed9c54' : '#67cbb0', fillOpacity: 1 }}>
+        <Tooltip>{event.event_title} · {formatDepth(event.historical_depth_m)}</Tooltip>
+      </CircleMarker>
+    })}
+  </MapContainer>
+}

@@ -8,6 +8,8 @@ The demo uses **Representative Synthetic Demo Data** and does not access confide
 
 **Release status: NOT LIVE.** Local checks pass. The `anubhav-nwis` Vercel project is created but not deployed; GitHub authentication is invalid, and no Render API or Supabase database is configured. No public URL is ready for SIH evaluation. See [DEPLOYMENT.md](DEPLOYMENT.md) for the exact remaining setup and release gate.
 
+Deployment configuration verified for SIH 2026.
+
 ## Requirements
 
 - Docker Compose (recommended for PostgreSQL and API), or Python 3.9+ with PostgreSQL 14+ for a local run.

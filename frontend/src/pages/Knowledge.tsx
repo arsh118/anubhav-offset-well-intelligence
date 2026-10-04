@@ -52,12 +52,19 @@ export function KnowledgePage() {
   const eventTypes = useMemo(() => Array.from(new Set(events.map((event) => event.event_type))).sort(), [events])
   const apply = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setApplied({ ...form }) }
   const reset = () => { setForm(EMPTY_FILTERS); setApplied(EMPTY_FILTERS) }
+  const searchPreset = (term: string) => {
+    const next = { ...form, q: term }
+    setForm(next)
+    setApplied(next)
+  }
 
   return <div className="page-stack">
-    <PageHeading title="Historical knowledge" subtitle="Search structured events and inspect the source document evidence behind each record." action={<span className="knowledge-count"><BookOpen size={14} />{events.length} records</span>} />
+    <PageHeading title="Knowledge search" subtitle="Search source-linked drilling events." action={<span className="knowledge-count"><BookOpen size={14} />{events.length} records</span>} />
     <section className="panel knowledge-search-panel"><form onSubmit={apply}>
       <div className="knowledge-search-main"><div className="search-input-wrap"><Search size={18} /><input aria-label="Search historical drilling knowledge" value={form.q} onChange={(event) => setForm({ ...form, q: event.target.value })} placeholder="Search historical drilling knowledge..." /><span>⌘ K</span></div><button className="primary-button" type="submit"><Search size={15} />Search records</button></div>
-      <div className="filter-section-title"><SlidersHorizontal size={14} /> FILTER RECORDS <button className="reset-filters" type="button" onClick={reset}>Reset</button></div>
+      <div className="knowledge-search-presets" aria-label="Suggested searches">{['Lost Circulation', 'Stuck Pipe', 'X Formation', 'Cementing', 'Mud Loss'].map((term) => <button type="button" key={term} onClick={() => searchPreset(term)}>{term}</button>)}</div>
+      <details className="knowledge-filter-details"><summary><SlidersHorizontal size={15} /> Filters <span>Advanced</span></summary>
+      <div className="filter-section-title">FILTER RECORDS <button className="reset-filters" type="button" onClick={reset}>Reset</button></div>
       <div className="knowledge-filters">
         <label>EVENT TYPE<select value={form.eventType} onChange={(event) => setForm({ ...form, eventType: event.target.value })}><option value="">All event types</option>{eventTypes.map((type) => <option key={type} value={type}>{humanize(type)}</option>)}</select></label>
         <label>FORMATION<select value={form.formation} onChange={(event) => setForm({ ...form, formation: event.target.value })}><option value="">All formations</option>{formations.map((formation) => <option key={formation.id} value={formation.name}>{formation.name}</option>)}</select></label>
@@ -67,17 +74,23 @@ export function KnowledgePage() {
         <label>DATE FROM<input type="date" value={form.dateFrom} onChange={(event) => setForm({ ...form, dateFrom: event.target.value })} /></label>
         <label>DATE TO<input type="date" value={form.dateTo} onChange={(event) => setForm({ ...form, dateTo: event.target.value })} /></label>
       </div>
+      </details>
     </form></section>
     <section className="panel knowledge-results"><div className="panel-heading"><div><div className="eyebrow">SOURCE-LINKED REPOSITORY</div><h2>Drilling event records</h2></div><span className="record-count">{loading ? '—' : events.length} RESULTS</span></div>
       {loading ? <Loading label="Searching source-linked drilling records" /> : error ? <ErrorState message={error} retry={() => void load(applied)} /> : events.length === 0 ? <EmptyState title="No matching historical records" detail="Try a broader term, clear a filter, or adjust the depth range. Search results only include structured event records with source evidence." /> : <div className="knowledge-result-list">{events.map((event) => {
         const evidence = event.evidence.find((record) => record.excerpt) ?? event.evidence[0]
         const isSeed = event.source_document.origin === 'seeded_demo'
-        return <article key={event.id} className="knowledge-result"><div className="result-left-mark"><FileSearch size={16} /></div><div className="result-main"><div className="result-topline"><span className="event-type-label">{humanize(event.event_type)}</span><span className="result-date"><CalendarDays size={12} />{formatDate(event.event_date)}</span></div><h3>{event.event_title}</h3><p><strong>Challenge / summary:</strong> {event.description}</p><div className="result-tags"><span>{event.well_name}</span><span>{formatDepth(event.measured_depth)}</span><span>{event.formation?.name ?? 'Formation unknown'}</span><span className={`severity-tag ${event.severity_label}`}>{humanize(event.severity_label)} severity</span></div>
-          <div className="knowledge-mitigation"><strong>Recorded mitigation</strong><p>{event.mitigation ?? 'No mitigation is recorded in this event.'}</p></div>
-          {event.consequence && <div className="knowledge-consequence"><strong>Recorded consequence</strong><p>{event.consequence}</p></div>}
-          {evidence && <blockquote className="result-excerpt">“{evidence.excerpt}”</blockquote>}
-          <div className="result-source"><span className="source-file-icon"><BookOpen size={13} /></span><span><SourceReference documentId={event.source_document.id} eventId={event.id} page={evidence?.page_number ?? event.source_page} className="knowledge-source-link"><strong>{event.source_document.filename}</strong></SourceReference><small>{isSeed ? 'Seeded Demo Evidence' : 'Uploaded Document'} · Page {evidence?.page_number ?? event.source_page ?? '—'}</small></span>{isSeed && <span className="synthetic-inline-badge">Representative Synthetic Demo Data</span>}<span className="source-confidence">{Math.round((evidence?.confidence ?? event.confidence) * 100)}% extraction confidence</span></div>
-          <SourceReference documentId={event.source_document.id} eventId={event.id} page={evidence?.page_number ?? event.source_page} className="knowledge-view-evidence"><ExternalLink size={12} /> View evidence and source page</SourceReference>
+        return <article key={event.id} className="knowledge-result"><div className="result-left-mark"><FileSearch size={16} /></div><div className="result-main"><div className="result-topline"><span className="event-type-label">{humanize(event.event_type)}</span><span className="result-date"><CalendarDays size={12} />{formatDate(event.event_date)}</span></div><h3>{event.event_title}</h3><div className="result-tags"><span>{event.well_name}</span><span>{formatDepth(event.measured_depth)}</span><span>{event.formation?.name ?? 'Formation unknown'}</span><span className={`severity-tag ${event.severity_label}`}>{humanize(event.severity_label)} severity</span></div>
+          {event.mitigation && <div className="knowledge-mitigation knowledge-mitigation-compact"><strong>Recorded mitigation</strong><p>{event.mitigation}</p></div>}
+          {isSeed && <span className="synthetic-inline-badge">Representative Synthetic Demo Data</span>}
+          <details className="knowledge-result-details"><summary>Challenge, mitigation and source context</summary>
+            <p><strong>Challenge / summary:</strong> {event.description}</p>
+            <div className="knowledge-mitigation"><strong>Recorded mitigation</strong><p>{event.mitigation ?? 'No mitigation is recorded in this event.'}</p></div>
+            {event.consequence && <div className="knowledge-consequence"><strong>Recorded consequence</strong><p>{event.consequence}</p></div>}
+            {evidence && <blockquote className="result-excerpt">“{evidence.excerpt}”</blockquote>}
+            <div className="result-source"><span className="source-file-icon"><BookOpen size={13} /></span><span><SourceReference documentId={event.source_document.id} eventId={event.id} page={evidence?.page_number ?? event.source_page} className="knowledge-source-link"><strong>{event.source_document.filename}</strong></SourceReference><small>{isSeed ? 'Seeded Demo Evidence' : 'Uploaded Document'} · Page {evidence?.page_number ?? event.source_page ?? '—'}</small></span><span className="source-confidence">{Math.round((evidence?.confidence ?? event.confidence) * 100)}% extraction confidence</span></div>
+          </details>
+          <SourceReference documentId={event.source_document.id} eventId={event.id} page={evidence?.page_number ?? event.source_page} className="knowledge-view-evidence"><ExternalLink size={12} /> View source</SourceReference>
         </div><span className="result-record-id">{event.id.slice(0, 8).toUpperCase()}</span></article>
       })}</div>}
       <div className="knowledge-footer"><span>Showing evidence-linked historical records from the ANUBHAV API.</span><span>Seeded demo evidence is labeled separately from uploaded documents.</span></div>

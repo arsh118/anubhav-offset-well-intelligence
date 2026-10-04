@@ -181,6 +181,6 @@ describe('trust and evidence layer', () => {
     render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><AppProvider><AppShell /></AppProvider></MemoryRouter>)
 
     expect(await screen.findByText('DECISION SUPPORT')).toBeTruthy()
-    expect(screen.getByText(/Synthetic demo data\. Historical evidence supports engineer review/)).toBeTruthy()
+    expect(screen.getByText('Source-linked history · engineer review required')).toBeTruthy()
   })
 })

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Activity, ArrowUpRight, BellRing, BookOpen, Database, MapPin, Radio, ShieldAlert, TriangleAlert } from 'lucide-react'
+import { Activity, ArrowUpRight, BellRing, BookOpen, Database, MapPin, Radio, ShieldAlert } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api, DASHBOARD_API_TIMEOUT_MS, queryString, withTransientRetries, type ActiveAlerts, type Alert, type Correlation, type NearbyWell, type OffsetMatch, type OffsetWellSummary } from '../lib/api'
 import { useApp } from '../lib/AppContext'
@@ -10,6 +10,7 @@ import { OffsetMap } from '../components/OffsetMap'
 import { DemoScenarioGuide } from '../components/DemoScenarioGuide'
 import { getJudgingPrecedents } from '../lib/demoScenario'
 import { LiveIntelligence } from '../components/LiveIntelligence'
+import { DepthCorrelation } from '../components/DepthCorrelation'
 
 type DashboardData = { correlation: Correlation; nearby: NearbyWell[]; eventCount: number; alerts: ActiveAlerts }
 
@@ -61,28 +62,31 @@ export function Dashboard() {
   const leadAlert = data?.alerts.alerts.find((alert) => alert.historical_event_id === leadMatch?.event_id)
     ?? data?.alerts.alerts[0]
     ?? null
+  const comparableEventCount = leadMatch
+    ? data?.correlation.historical_events.filter((event) => event.event_type === leadMatch.event_type).length ?? 0
+    : 0
 
   if (wellState === 'loading') return <DashboardLoadingSkeleton phase="startup" />
-  if (wellState === 'error') return <div className="page-stack"><PageHeading title="ANUBHAV" subtitle="AI-powered offset well intelligence for current drilling decisions." /><div className="context-error-note">Restore the ANUBHAV connection using TRY AGAIN above.</div></div>
+  if (wellState === 'error') return <div className="page-stack"><PageHeading title="ANUBHAV" subtitle="Evidence-backed offset well intelligence." /><div className="context-error-note">Restore the ANUBHAV connection using TRY AGAIN above.</div></div>
   if (wellState === 'empty') return <div className="page-stack"><PageHeading title="Operations overview" subtitle="Evidence-backed historical context for the active well." /><EmptyState title="No active well available" detail="The API returned an empty well dataset. An active well record is needed before offset relevance can be calculated." /></div>
   if (!activeWell) return <div className="page-stack"><PageHeading title="Operations overview" subtitle="Evidence-backed historical context for the active well." /><EmptyState title="No active well configured" detail="The API returned well records, but none is marked as the active well." /></div>
 
   return <div className="page-stack dashboard-page">
-    <PageHeading title="ANUBHAV" subtitle="AI-powered offset well intelligence for current drilling decisions." />
+    <PageHeading title="ANUBHAV" subtitle="Institutional memory for active drilling decisions." />
     {error && <ErrorState title="ANUBHAV is taking longer to respond." message="The ANUBHAV API could not be reached." retryLabel="TRY AGAIN" retry={() => void load()} />}
     {!data && !error ? <DashboardLoadingSkeleton phase="dashboard" /> : data && <>
-      <section className="active-summary panel" aria-label="Active well summary">
+      <section className="active-summary panel dashboard-well-hero" aria-label="Active well summary">
         <div className="active-summary-copy">
           <div className="eyebrow">ACTIVE WELL <span className="active-summary-divider">/</span> {activeWell.field ?? 'FIELD UNASSIGNED'}</div>
           <h2>{activeWell.well_name}</h2>
-          <p>Historical drilling intelligence from nearby and analogous wells.</p>
+          <span className="active-summary-context">{data.correlation.total_matching_events} relevant historical {data.correlation.total_matching_events === 1 ? 'precedent' : 'precedents'} in the selected window</span>
         </div>
         <div className="active-summary-facts">
-          <div className="active-summary-depth"><span>Current depth</span><strong>{formatDepth(activeWell.current_depth)} <small>MD</small></strong></div>
-          <div className="active-summary-formation"><span>Current formation</span><strong>{activeWell.current_formation?.name ?? 'Formation unavailable'}</strong></div>
+          <div className="active-summary-depth"><span>CURRENT DEPTH</span><strong>{formatDepth(activeWell.current_depth)} <small>MD</small></strong></div>
+          <div className="active-summary-formation"><span>FORMATION</span><strong>{activeWell.current_formation?.name ?? 'Formation unavailable'}</strong></div>
           <span className="active-summary-status"><i />{humanize(activeWell.status)}</span>
         </div>
-        <Link className="active-summary-link" to="/active-well">Explore active well <ArrowUpRight size={15} /></Link>
+        <Link className="active-summary-link" to="/active-well">Well details <ArrowUpRight size={15} /></Link>
       </section>
 
       <div className="kpi-grid">
@@ -93,29 +97,31 @@ export function Dashboard() {
       </div>
 
       <section className={`precedent-hero panel ${leadMatch?.relevance_band ?? 'none'}`} aria-labelledby="precedent-title">
-        <div className="precedent-hero-heading"><span className="precedent-icon"><TriangleAlert size={19} /></span><div><div className="eyebrow">HISTORICAL PRECEDENT</div><h2 id="precedent-title">{leadMatch?.event_title ?? data.alerts.title}</h2></div><span className={`precedent-relevance ${leadMatch?.relevance_band ?? 'none'}`}>{leadMatch ? `${humanize(leadMatch.relevance_band)} historical relevance` : 'No significant precedent'}</span></div>
+        <div className="precedent-hero-heading"><div><div className="eyebrow">HISTORICAL PRECEDENT</div><h2 id="precedent-title">{leadMatch?.event_title ?? data.alerts.title}</h2></div><span className={`precedent-relevance ${leadMatch?.relevance_band ?? 'none'}`}>{leadMatch ? `${humanize(leadMatch.relevance_band)} relevance` : 'No significant precedent'}</span></div>
         {leadMatch ? <>
+          <div className="precedent-source-line"><strong>{leadMatch.offset_well.well_name}</strong><span>{formatDepth(leadMatch.historical_depth_m)} MD</span><span>{leadMatch.formation?.name ?? 'Formation not recorded'}</span></div>
           <div className="precedent-facts" aria-label="Historical precedent details">
-            <div><span>Offset well</span><strong>{leadMatch.offset_well.well_name}</strong></div>
-            <div><span>Historical depth</span><strong>{formatDepth(leadMatch.historical_depth_m)}</strong></div>
-            <div><span>Depth from active</span><strong>{signedDepth(leadMatch.depth_difference_m)}</strong></div>
-            <div><span>Distance</span><strong>{formatDistance(leadMatch.distance_km)} away</strong></div>
-            <div><span>Formation</span><strong>{leadMatch.formation?.name ?? 'Not recorded'}</strong></div>
+            <span className="precedent-fact-chip">{signedDepth(leadMatch.depth_difference_m)}</span>
+            <span className="precedent-fact-chip">{formatDistance(leadMatch.distance_km)} away</span>
+            <span className="precedent-fact-chip">{leadMatch.formation_match === 'exact' ? 'Same formation' : `${humanize(leadMatch.formation_match)} formation`}</span>
+            <span className="precedent-fact-chip">{comparableEventCount} comparable {comparableEventCount === 1 ? 'event' : 'events'}</span>
           </div>
-          <p className="precedent-explanation">{leadMatch.formation_match === 'exact' ? 'Same formation' : `${humanize(leadMatch.formation_match)} formation context`}, nearby offset well, and a documented historical event {leadMatch.depth_difference_m > 0 ? `${leadMatch.depth_difference_m} m ahead` : 'near the active depth'}.</p>
-          <button type="button" className="precedent-action" onClick={() => { setSelectedMatch(leadMatch); setSelectedAlert(leadAlert) }} aria-label={`View evidence and mitigation for ${leadMatch.event_title}`}>
-            <BookOpen size={16} /> View evidence &amp; mitigation <ArrowUpRight size={16} />
-          </button>
-        </> : <div className="precedent-empty"><p>No source-backed precedent is available in the current radius and depth window.</p><Link to="/knowledge">Search historical records <ArrowUpRight size={14} /></Link></div>}
+          <div className="precedent-actions">
+            <button type="button" className="precedent-action" onClick={() => { setSelectedMatch(leadMatch); setSelectedAlert(leadAlert) }} aria-label={`View evidence and mitigation for ${leadMatch.event_title}`}>
+              <BookOpen size={16} /> View evidence <ArrowUpRight size={16} />
+            </button>
+            <Link className="precedent-correlation-link" to="/active-well">View correlation <ArrowUpRight size={14} /></Link>
+            <details className="precedent-why"><summary>Why this match?</summary><p>{leadMatch.explanation}</p></details>
+          </div>
+          {data.alerts.recommendation && <div className="precedent-recommendation"><span>{data.alerts.recommendation.label}</span><strong>{data.alerts.recommendation.message}</strong></div>}
+        </> : <div className="precedent-empty"><p>No source-backed precedent in the selected radius and depth window.</p><Link to="/knowledge">Search historical records <ArrowUpRight size={14} /></Link></div>}
       </section>
-
-      <LiveIntelligence activeWellId={activeWellId} radiusKm={radiusKm} depthWindowM={depthWindowM} />
 
       <div className="dashboard-spatial-grid">
         <section className="panel map-panel">
-          <div className="panel-heading"><div><div className="eyebrow">LOCATION CONTEXT · {activeWell.field ?? 'FIELD UNASSIGNED'}</div><h2>Nearby wells</h2></div><span className="panel-meta"><i className="map-radius-icon" />{radiusKm} km radius</span></div>
+          <div className="panel-heading"><div><div className="eyebrow">OFFSET WELL MAP</div><h2>Nearby wells</h2></div><span className="panel-meta"><i className="map-radius-icon" />{radiusKm} km radius</span></div>
           <div className="map-wrap"><OffsetMap activeWell={activeWell} offsets={mapOffsets} events={displayedMatches} radiusKm={radiusKm} /></div>
-          <div className="map-legend"><span><i className="legend-active" />Active well <b>{activeWell.well_name}</b></span><span><i className="legend-offset" />Nearby well</span><span><i className="legend-match" />Historical match</span></div>
+          <div className="map-legend"><span><i className="legend-active" />Active well · {activeWell.well_name}</span><span><i className="legend-offset" />Offset well</span><span><i className="legend-match" />Historical event</span></div>
         </section>
         <section className="panel nearby-list-panel" aria-labelledby="nearby-list-title">
           <div className="panel-heading"><div><div className="eyebrow">OFFSET REGISTER</div><h2 id="nearby-list-title">Nearby offsets</h2></div><span className="record-count">{data.nearby.length} WELLS</span></div>
@@ -129,10 +135,15 @@ export function Dashboard() {
               <span className="nearby-list-meta"><strong>{formatDistance(distance_km)}</strong><small>{eventCount} relevant {eventCount === 1 ? 'event' : 'events'}</small></span>
             </Link>
           })}</div> : <EmptyState title="No nearby offset wells in this radius" detail="Increase the radius to include more wells." />}
-          <div className="nearby-list-footer"><span>Historical matches are source-linked records.</span><Link to="/offsets">View offset register <ArrowUpRight size={14} /></Link></div>
+          <div className="nearby-list-footer"><Link to="/offsets">Explore offset intelligence <ArrowUpRight size={14} /></Link></div>
         </section>
       </div>
 
+      <DepthCorrelation activeWell={activeWell} events={displayedMatches} depthWindowM={depthWindowM} onSelect={(event) => { setSelectedMatch(event); setSelectedAlert(null) }} />
+      <LiveIntelligence activeWellId={activeWellId} radiusKm={radiusKm} depthWindowM={depthWindowM} />
+
+      <details className="dashboard-secondary-details"><summary>Historical records and supporting analysis <span>{displayedMatches.length} matches</span></summary>
+      <div className="dashboard-secondary-content">
       <div className="dashboard-insight-grid">
         <section className="panel historical-list-panel" aria-labelledby="historical-list-title">
           <div className="panel-heading"><div><div className="eyebrow">SOURCE-LINKED EVENT RECORDS</div><h2 id="historical-list-title">Historical intelligence</h2></div><span className="record-count">{displayedMatches.length} MATCHES</span></div>
@@ -165,6 +176,8 @@ export function Dashboard() {
           </div>}
           <div className="alert-panel-footer"><span>Historical precedent identified from documented offset well records.</span><Link to="/alerts">Open alert register <ArrowUpRight size={14} /></Link></div>
         </section>
+      </details>
+      </div>
       </details>
 
       {demoMode && <DemoScenarioGuide activeWell={activeWell} precedents={featuredDemoMatches} onOpenEvidence={setSelectedMatch} />}

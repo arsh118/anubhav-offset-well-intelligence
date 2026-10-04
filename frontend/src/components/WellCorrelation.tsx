@@ -64,6 +64,14 @@ export function WellCorrelation({ correlation }: { correlation: Correlation }) {
   const activeInterval = correlation.active_formation_interval
   const activeParameters = correlation.active_drilling_parameters
   const comparable = correlation.comparable_wells
+  const closest = comparable[0]
+  const activeDepth = active.active_depth_m
+  const offsetSampleDepth = closest?.offset_drilling_parameters?.measured_depth_m
+  const offsetEventDepth = closest?.historical_events[0]?.historical_depth_m
+  const offsetDepth = offsetSampleDepth ?? offsetEventDepth ?? closest?.offset_well.current_depth ?? null
+  const depthLabel = offsetSampleDepth != null ? 'Offset sample depth' : offsetEventDepth != null ? 'Offset event depth' : 'Offset measured depth'
+  const offsetFormation = closest?.offset_formation_interval?.formation.name ?? closest?.offset_well.current_formation?.name ?? 'Not recorded'
+  const activeFormation = activeInterval?.formation.name ?? active.active_formation ?? 'Not recorded'
   const renderMetrics = (metrics: Metric[]) => metrics.map((metric) => {
     const activeValue = activeParameters ? (activeParameters as unknown as Record<string, number | null>)[metric.key] : null
     return <tr key={metric.key}><th scope="row">{metric.label}</th>
@@ -86,9 +94,19 @@ export function WellCorrelation({ correlation }: { correlation: Correlation }) {
       <strong>{active.well_name}</strong><span>{active.active_depth_m?.toLocaleString() ?? '—'} m MD</span>
       <span>{activeInterval?.formation.name ?? active.active_formation ?? 'Formation unavailable'}</span>
       <span>{activeInterval?.lithology ?? 'Lithology unavailable'}</span>
-      <small>{correlation.data_notice} · Similarity scores are heuristic comparisons.</small>
+      <small>{correlation.data_notice}</small>
     </div>
-    {comparable.length === 0 ? <div className="empty-state"><strong>No offset wells are available for parameter comparison.</strong><p>Increase the configured radius or check the active well coordinates.</p></div> : <div className="well-correlation-scroll">
+    {comparable.length === 0 ? <div className="empty-state"><strong>No offset wells are available for parameter comparison.</strong><p>Increase the configured radius or check the active well coordinates.</p></div> : <>
+      <div className="correlation-comparison-heading"><span className="eyebrow">CLOSEST COMPARABLE WELL</span><strong>{active.well_name} <span>vs</span> {closest.offset_well.well_name}</strong></div>
+      <div className="correlation-comparison-grid">
+        <article className="correlation-comparison-card formation"><span>FORMATION</span><strong>{activeFormation}</strong><small>{offsetFormation} · {closest.formation_match === 'exact' ? 'Match' : `${closest.formation_match} match`}</small></article>
+        <article className="correlation-comparison-card depth"><span>DEPTH</span><strong>{activeDepth?.toLocaleString() ?? '—'} <small>vs</small> {offsetDepth?.toLocaleString() ?? '—'} m</strong><small>{depthLabel}{closest.depth_alignment_m == null ? '' : ` · ${Math.round(closest.depth_alignment_m)} m alignment`}</small></article>
+        <article className="correlation-comparison-card distance"><span>DISTANCE</span><strong>{closest.distance_km.toFixed(1)} <small>km</small></strong><small>{closest.offset_well.field ?? 'Field not recorded'}</small></article>
+        <article className="correlation-comparison-card events"><span>EVENT HISTORY</span><strong>{closest.historical_events.length}</strong><small>Matched historical {closest.historical_events.length === 1 ? 'event' : 'events'}</small></article>
+      </div>
+      <div className="correlation-reasons"><span className="eyebrow">WHY THIS WELL MATTERS</span><div>{closest.comparison_reasons.slice(0, 3).map((reason) => <span className="evidence-chip" key={reason}>{reason}</span>)}</div></div>
+      <details className="well-correlation-details"><summary>Geology, reservoir and drilling comparison <span>{comparable.length} wells</span></summary>
+      <div className="well-correlation-scroll">
       <table className="well-correlation-table">
         <thead><tr><th scope="col">Parameter</th><th scope="col">
           <span className="correlation-well-label">ACTIVE WELL</span><strong>{active.well_name}</strong>
@@ -132,8 +150,10 @@ export function WellCorrelation({ correlation }: { correlation: Correlation }) {
           <tr><th scope="row">Cementing metadata</th><td>{activeParameters?.cementing_metadata ?? '—'}</td>{comparable.map((row) => <td key={row.offset_well.id}>{row.offset_drilling_parameters?.cementing_metadata ?? '—'}</td>)}</tr>
         </tbody>
       </table>
-    </div>}
-    <div className="well-correlation-footer">Prototype depths use meters and comparable measured-depth values. Similarity heuristics are not expert validated or OIL-approved limits. Bars scale to each pair for display only.</div>
+      </div>
+      <div className="well-correlation-footer">Prototype depths use meters and comparable measured-depth values. Similarity heuristics are not expert validated or OIL-approved limits. Bars scale to each pair for display only.</div>
+      </details>
+    </>}
     {selectedMatch && <EvidenceDrawer match={selectedMatch} relatedMatches={correlation.historical_events} onClose={() => setSelectedMatch(null)} />}
   </section>
 }

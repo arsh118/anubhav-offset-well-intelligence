@@ -82,8 +82,8 @@ describe('well correlation comparison', () => {
 
     expect(screen.getByText('ACTIVE WELL')).toBeTruthy()
     expect(screen.getByText('OFFSET WELL')).toBeTruthy()
-    expect(screen.getByText('Same formation: X Formation')).toBeTruthy()
-    expect(screen.getByText('Historical event 23 m ahead of active depth: Partial lost circulation in X Formation')).toBeTruthy()
+    expect(screen.getAllByText('Same formation: X Formation').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Historical event 23 m ahead of active depth: Partial lost circulation in X Formation').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Normalized: x formation · Aliases: x-fm')).toHaveLength(2)
     expect(screen.getByText('Reservoir / zone')).toBeTruthy()
     expect(screen.getByText('Porosity')).toBeTruthy()

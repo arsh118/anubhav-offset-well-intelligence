@@ -58,8 +58,8 @@ describe('knowledge repository presentation', () => {
 
     expect(await screen.findByText('Mud loss reported in X Formation')).toBeTruthy()
     expect(screen.getByText((_text, element) => element?.textContent === 'Challenge / summary: A separate offset record notes mud loss deeper in X Formation.')).toBeTruthy()
-    expect(screen.getByText('Recorded mitigation')).toBeTruthy()
-    expect(screen.getByText('The report describes a loss-control treatment followed by monitored circulation.')).toBeTruthy()
+    expect(screen.getAllByText('Recorded mitigation').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('The report describes a loss-control treatment followed by monitored circulation.').length).toBeGreaterThan(0)
     expect(screen.getByText('ANB-04')).toBeTruthy()
     expect(screen.getByText('2,875 m')).toBeTruthy()
     expect(screen.getAllByText('X Formation').length).toBeGreaterThanOrEqual(2)

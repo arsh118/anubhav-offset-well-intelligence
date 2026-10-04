@@ -11,44 +11,53 @@ export function DepthCorrelation({ activeWell, events, depthWindowM, onSelect }:
   const span = Math.max(1, max - min)
   const position = (depth: number) => Math.min(99, Math.max(1, ((depth - min) / span) * 100))
   const formationBands = activeWell.formations.filter((interval) => interval.base_depth >= min && interval.top_depth <= max)
-  const visibleEvents = events.filter((event) => event.historical_depth_m >= min && event.historical_depth_m <= max).slice(0, 30)
-  const aheadEvents = events.filter((event) => event.depth_difference_m > 0)
-  const strongest = aheadEvents[0]
+  const visibleEvents = events
+    .filter((event) => event.historical_depth_m >= min && event.historical_depth_m <= max)
+    .sort((left, right) => left.absolute_depth_difference_m - right.absolute_depth_difference_m)
+  const plottedEvents = visibleEvents.slice(0, 8)
+  const strongest = [...visibleEvents.filter((event) => event.depth_difference_m > 0)]
+    .sort((left, right) => right.relevance_score - left.relevance_score)[0] ?? visibleEvents[0]
   const formationMatchCount = events.filter((event) => event.formation_match === 'exact' || event.formation_match === 'alias').length
   const chips = [
-    formationMatchCount ? `Same formation · ${formationMatchCount}` : activeWell.current_formation?.name ?? 'Formation unavailable',
-    strongest ? `${Math.round(strongest.depth_difference_m)} m ahead` : 'No event ahead in window',
-    strongest ? `${strongest.distance_km.toFixed(1)} km away` : `${events.length} historical matches`,
-    `${events.length} correlated event${events.length === 1 ? '' : 's'}`,
+    formationMatchCount ? `${formationMatchCount} formation matches` : activeWell.current_formation?.name ?? 'Formation unavailable',
+    strongest ? signedDepth(strongest.depth_difference_m) : 'No event in depth window',
+    strongest ? `${strongest.distance_km.toFixed(1)} km offset` : `${events.length} historical matches`,
+    `${events.length} correlated ${events.length === 1 ? 'event' : 'events'}`,
   ]
 
-  return <section className="panel correlation-panel">
-    <div className="panel-heading"><div><div className="eyebrow">DEPTH-AWARE OFFSET COMPARISON</div><h2>Depth correlation</h2></div><span className="panel-meta"><Ruler size={14} /> MD · meters</span></div>
-    {visibleEvents.length === 0 ? <div className="correlation-empty"><strong>No significant historical precedent found in the selected radius and depth window.</strong><span>Try a wider radius or a larger depth window to review more historical records.</span></div> : <>
-      <div className="depth-chart">
-        <div className="depth-scale"><span>{formatDepth(min)}</span><span>{formatDepth((min + max) / 2)}</span><span>{formatDepth(max)}</span></div>
-        <div className="depth-track">
-          {formationBands.map((band) => {
-            const left = position(Math.max(min, band.top_depth))
-            const right = position(Math.min(max, band.base_depth))
-            return <div className="formation-band" key={band.id} style={{ left: `${left}%`, width: `${Math.max(1, right - left)}%` }} title={`${band.formation.name}: ${formatDepth(band.top_depth)}–${formatDepth(band.base_depth)}`}>
-              <span>{band.formation.name}</span>
-            </div>
-          })}
-          <div className="active-depth-window" style={{ left: `${position(activeDepth)}%`, width: `${Math.max(0, position(max) - position(activeDepth))}%` }} />
-          <div className="depth-tick active-tick" style={{ left: `${position(activeDepth)}%` }}><span>ACTIVE {formatDepth(activeDepth)}</span></div>
-          {visibleEvents.map((event) => <button key={event.event_id} className={`depth-event ${event.relevance_band}`} style={{ left: `${position(event.historical_depth_m)}%` }} onClick={() => onSelect(event)} title={`${event.event_title} · ${formatDepth(event.historical_depth_m)} · ${event.offset_well.well_name}`}>
-            <span className="depth-event-dot" /><span className="depth-event-label">{event.offset_well.well_name} · {signedDepth(event.depth_difference_m)}</span>
-          </button>)}
+  return <section className="panel correlation-panel" aria-labelledby="depth-correlation-title">
+    <div className="panel-heading"><div><div className="eyebrow">MEASURED DEPTH · METERS</div><h2 id="depth-correlation-title">Depth correlation</h2></div><span className="panel-meta"><Ruler size={15} />{depthWindowM} m ahead</span></div>
+    {visibleEvents.length === 0 ? <div className="correlation-empty"><strong>No matched historical events in this depth window.</strong><span>Adjust the radius or depth window to review more source-backed records.</span></div> : <>
+      <div className="depth-chart" aria-label={`Depth correlation from ${Math.round(min)} to ${Math.round(max)} meters`}>
+        <div className="depth-scale"><span>{formatDepth(min)}</span><span>{formatDepth(min + span / 2)}</span><span>{formatDepth(max)}</span></div>
+        <div className="depth-plot">
+          <div className="depth-formation-track" aria-label="Active well formation intervals">
+            {formationBands.map((band) => {
+              const left = position(Math.max(min, band.top_depth))
+              const right = position(Math.min(max, band.base_depth))
+              return <div className="formation-band" key={band.id} style={{ left: `${left}%`, width: `${Math.max(1, right - left)}%` }} title={`${band.formation.name}: ${formatDepth(band.top_depth)}–${formatDepth(band.base_depth)}`}>
+                <span>{band.formation.name}</span>
+              </div>
+            })}
+          </div>
+          <div className="depth-track">
+            <div className="active-depth-window" style={{ left: `${position(activeDepth)}%`, width: `${Math.max(0, position(max) - position(activeDepth))}%` }} />
+            <div className="depth-axis-line" />
+            <div className="depth-tick active-tick" style={{ left: `${position(activeDepth)}%` }}><span>ACTIVE · {formatDepth(activeDepth)}</span></div>
+            {plottedEvents.map((event, index) => <button key={event.event_id} className={`depth-event ${event.relevance_band}`} style={{ left: `${position(event.historical_depth_m)}%`, top: `${(index % 4) * 52}px` }} onClick={() => onSelect(event)} title={`${event.event_title} · ${formatDepth(event.historical_depth_m)} · ${event.offset_well.well_name}`} aria-label={`${event.event_title}, ${event.offset_well.well_name}, ${formatDepth(event.historical_depth_m)}, ${signedDepth(event.depth_difference_m)}`}>
+              <span className="depth-event-stem" /><span className="depth-event-dot" /><span className="depth-event-label"><strong>{event.offset_well.well_name}</strong><small>{formatDepth(event.historical_depth_m)} · {event.event_title}</small></span>
+            </button>)}
+          </div>
         </div>
+        <div className="depth-legend"><span><i className="legend-active" />Current measured depth</span><span><i className="legend-future" />Look-ahead window</span><span><i className="legend-event" />Historical event</span><span className="legend-hint">Select a marker for source evidence</span></div>
       </div>
-      <div className="depth-legend"><span><i className="legend-active" />Current depth</span><span><i className="legend-future" />Future depth window</span><span><i className="legend-event" />Historical event</span><span className="legend-hint">Select a marker to inspect its source evidence</span></div>
-      <div className="why-signal"><div className="why-heading"><div><div className="eyebrow">EVIDENCE SUMMARY</div><h3>Why this signal?</h3></div>{strongest && <button className="inline-link" onClick={() => onSelect(strongest)}>Open strongest match <ChevronRight size={15} /></button>}</div>
+      <div className="why-signal"><div className="why-heading"><div><div className="eyebrow">MATCH CONTEXT</div><h3>Why this signal?</h3></div>{strongest && <button className="inline-link" onClick={() => onSelect(strongest)}>View strongest evidence <ChevronRight size={15} /></button>}</div>
         <div className="evidence-chips">{chips.map((chip) => <span key={chip} className="evidence-chip"><i />{chip}</span>)}</div>
       </div>
       <div className="correlation-list">{visibleEvents.slice(0, 4).map((event) => <button key={event.event_id} className="correlation-row" onClick={() => onSelect(event)} aria-label={`View evidence for ${event.event_title} in ${event.offset_well.well_name}`}>
-        <span className={`event-dot ${event.relevance_band}`} /><span className="correlation-event-name">{event.event_title}<small>{event.offset_well.well_name} · {event.formation?.name ?? 'Formation not recorded'}</small></span><span className="correlation-depth">{formatDepth(event.historical_depth_m)}<small>{signedDepth(event.depth_difference_m)} from active</small></span><span className="correlation-score">{Math.round(event.relevance_score)}<small>RELEVANCE</small></span><span className="view-evidence-label">View evidence</span><ArrowRight size={15} className="row-arrow" />
+        <span className={`event-dot ${event.relevance_band}`} /><span className="correlation-event-name">{event.event_title}<small>{event.offset_well.well_name} · {event.formation?.name ?? 'Formation not recorded'}</small></span><span className="correlation-depth">{formatDepth(event.historical_depth_m)}<small>{signedDepth(event.depth_difference_m)}</small></span><span className={`score-badge ${event.relevance_band}`}>{Math.round(event.relevance_score)}</span><span className="view-evidence-label">Evidence</span><ArrowRight size={15} className="row-arrow" />
       </button>)}</div>
+      {visibleEvents.length > plottedEvents.length && <p className="depth-more-note">Showing the 8 closest events on the axis. All {visibleEvents.length} matches remain available in the event register.</p>}
     </>}
   </section>
 }

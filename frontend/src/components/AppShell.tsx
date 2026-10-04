@@ -1,6 +1,6 @@
-import { Activity, ArrowUpRight, Bell, BookOpen, ChevronDown, Compass, FileText, Layers3, MapPinned, ShieldCheck, Waves, CircleHelp } from 'lucide-react'
+import { Activity, Bell, BookOpen, ChevronDown, Compass, FileText, Layers3, MapPinned, ShieldCheck, Waves, CircleHelp } from 'lucide-react'
 import { useState } from 'react'
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from '../lib/AppContext'
 import { humanize } from '../lib/format'
 import { ErrorState } from './Feedback'
@@ -42,14 +42,14 @@ export function AppShell() {
       </nav>
       <div className="sidebar-bottom">
         <div className="data-source"><span className="source-dot" /><div><strong>Representative Synthetic Demo Data</strong><small>Public / illustrative only</small></div></div>
-        <div className="sidebar-disclaimer">Synthetic demo data. Historical evidence supports engineer review; it is not incident prediction.</div>
+        <div className="sidebar-disclaimer">Source-linked history · engineer review required</div>
         <div className="sidebar-version">ANUBHAV MVP <span>·</span> SIH 2026</div>
       </div>
     </aside>
 
     <div className="main-shell">
       <header className="topbar">
-        <div className="topbar-context"><div className="eyebrow">DRILLING OPERATIONS KNOWLEDGE</div><div className="topbar-title">AI-Powered Offset Well Intelligence</div></div>
+        <div className="topbar-context"><div className="eyebrow">DRILLING CONSOLE</div><div className="topbar-title">Historical drilling context</div></div>
         <div className="topbar-tools">
           <label className="top-control well-control"><span>ACTIVE WELL</span><span className="select-wrap"><select value={activeWellId} onChange={(event) => setActiveWellId(event.target.value)} aria-label="Select active well" disabled={!activeWells.length}>
             {activeWells.length === 0 && <option value="">{wellState === 'loading' ? 'Loading active wells…' : wellState === 'error' ? 'Active wells unavailable' : wellState === 'empty' ? 'No active wells available' : 'No active well configured'}</option>}
@@ -62,7 +62,6 @@ export function AppShell() {
             {[50, 100, 200, 500].map((value) => <option key={value} value={value}>{value} m</option>)}
           </select><ChevronDown size={14} /></span></label>
           <button className={`demo-mode-trigger${demoMode ? ' active' : ''}`} onClick={toggleDemoMode} disabled={!demoMode && !activeWells.some((well) => well.well_name === 'ANB-01')} aria-pressed={demoMode}>{demoMode ? 'Exit demo' : 'Explore demo'}</button>
-          <Link className="topbar-active-well-link" to="/active-well">Explore active well <ArrowUpRight size={14} /></Link>
           <button className="methodology-trigger" onClick={() => setMethodologyOpen(true)} disabled={!activeWellId} aria-label="How ANUBHAV calculates historical relevance" title="How relevance is calculated"><CircleHelp size={14} /><span>Methodology</span></button>
           <div className={`system-status ${apiStatus}`} title={apiStatus === 'online' ? 'API and database reachable' : 'API status'}><span className="status-led" />{apiStatus === 'online' ? 'SYSTEM ONLINE' : apiStatus === 'loading' ? 'CONNECTING' : 'API OFFLINE'}</div>
         </div>
@@ -74,7 +73,7 @@ export function AppShell() {
         {activeWell && location.pathname !== '/' && <div className="context-line"><span className="context-line-name">{activeWell.well_name}</span><span>{activeWell.field}</span><span className="context-separator">/</span><span>{activeWell.current_depth?.toLocaleString() ?? '—'} m MD</span><span className="context-separator">/</span><span>{activeWell.current_formation?.name ?? 'Formation unavailable'}</span><span className="context-separator">/</span><span className="context-status">{humanize(activeWell.status)}</span></div>}
         <Outlet />
       </main>
-      <footer className="page-footer"><span><Compass size={13} /> Offset relevance is a transparent heuristic based on historical records.</span><span>Demo dataset · No confidential OIL data</span></footer>
+      <footer className="page-footer"><span><Compass size={13} /> Historical evidence supports review; it does not predict incidents.</span><span>Representative synthetic demo data</span></footer>
     </div>
     {methodologyOpen && activeWellId && <MethodologyDrawer activeWellId={activeWellId} radiusKm={radiusKm} depthWindowM={depthWindowM} onClose={() => setMethodologyOpen(false)} />}
   </div>

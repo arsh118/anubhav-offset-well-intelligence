@@ -11,7 +11,7 @@ export function LiveIntelligence({ activeWellId, radiusKm, depthWindowM }: { act
   const [feed, setFeed] = useState<LiveFeed | null>(null)
   const [index, setIndex] = useState(0)
   const [running, setRunning] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [feedError, setFeedError] = useState<string | null>(null)
   const [feedRevision, setFeedRevision] = useState(0)
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null)
@@ -110,7 +110,7 @@ export function LiveIntelligence({ activeWellId, radiusKm, depthWindowM }: { act
         <button type="button" className="quiet-live-button" onClick={() => { setRunning(false); setIndex(0) }} disabled={!feed?.states.length} aria-label="Reset replay"><RotateCcw size={15} /> Reset</button>
       </div>
     </div>
-    {loading ? <div className="live-loading"><Loading label="Loading deterministic drilling replay" /></div> : feedError ? <ErrorState message={feedError} retry={() => { setFeedError(null); setFeedRevision((value) => value + 1) }} /> : !state ? <EmptyState title="No simulated drilling samples are seeded for this well." detail="The historical well repository remains available; a live replay sequence is not currently available." /> : <>
+    {loading || (!feed && !feedError) ? <div className="live-loading-skeleton" aria-label="Loading live intelligence" aria-busy="true"><span className="eyebrow">LOADING HISTORICAL INTELLIGENCE</span><div><i /><i /><i /></div></div> : feedError ? <ErrorState message={feedError} retry={() => { setFeedError(null); setFeedRevision((value) => value + 1) }} /> : !state ? <EmptyState title="No simulated drilling samples are seeded for this well." detail="The historical well repository remains available; a live replay sequence is not currently available." /> : <>
       <div className="live-synthetic-banner"><strong>SIMULATED eRTMAC</strong><span>Representative Synthetic Data</span><span>No connection to OIL's actual eRTMAC system</span></div>
       <div className="live-dashboard-grid">
         <div className="live-replay-column">

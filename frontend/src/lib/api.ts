@@ -2,6 +2,10 @@ const API_BASE = import.meta.env.PROD
   ? 'https://anubhav-api-6s3x.onrender.com/api'
   : import.meta.env.VITE_API_BASE_URL ?? '/api'
 
+export const INITIAL_API_TIMEOUT_MS = 90_000
+export const DASHBOARD_API_TIMEOUT_MS = 75_000
+const DEFAULT_API_TIMEOUT_MS = 45_000
+
 export type Formation = { id: string; name: string; normalized_name: string; aliases: string[] }
 export type FormationInterval = {
   id: string
@@ -275,31 +279,67 @@ export class ApiError extends Error {
   constructor(message: string, status: number) { super(message); this.name = 'ApiError'; this.status = status }
 }
 
-export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function withTransientRetries<T>(operation: () => Promise<T>, maxRetries = 2): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await operation()
+    } catch (error) {
+      const status = error instanceof ApiError ? error.status : null
+      const transient = status === 0 || status === 408 || status === 429 || (status !== null && status >= 500)
+      if (!transient || attempt >= maxRetries) throw error
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 1_000 * 2 ** attempt))
+    }
+  }
+}
+
+export async function api<T>(path: string, options: RequestInit = {}, timeoutMs = DEFAULT_API_TIMEOUT_MS): Promise<T> {
+  const timeoutController = new AbortController()
+  const externalSignal = options.signal
+  let timedOut = false
+  const timeout = window.setTimeout(() => {
+    timedOut = true
+    timeoutController.abort()
+  }, timeoutMs)
+  const forwardAbort = () => timeoutController.abort(externalSignal?.reason)
+  if (externalSignal?.aborted) forwardAbort()
+  else externalSignal?.addEventListener('abort', forwardAbort, { once: true })
+
   let response: Response
   try {
-    response = await fetch(`${API_BASE}${path}`, options)
-  } catch {
-    throw new ApiError('The ANUBHAV API could not be reached. Check that the backend is running.', 0)
-  }
-  if (!response.ok) {
-    let message = `Request failed (${response.status}).`
     try {
-      const body = await response.json() as { detail?: unknown }
-      if (typeof body.detail === 'string' && body.detail.trim()) {
-        message = body.detail.trim()
-      } else if (Array.isArray(body.detail)) {
-        const validationMessages = body.detail.flatMap((item: unknown) => {
-          if (typeof item !== 'object' || item === null || !('msg' in item)) return []
-          const detailMessage = item.msg
-          return typeof detailMessage === 'string' && detailMessage.trim() ? [detailMessage.trim()] : []
-        })
-        if (validationMessages.length > 0) message = validationMessages.join(' · ')
-      }
-    } catch { /* Keep the readable fallback. */ }
-    throw new ApiError(message, response.status)
+      response = await fetch(`${API_BASE}${path}`, { ...options, signal: timeoutController.signal })
+    } catch (error) {
+      if (externalSignal?.aborted) throw error
+      if (timedOut) throw new ApiError('ANUBHAV is taking longer to respond. Please try again.', 0)
+      throw new ApiError('The ANUBHAV API could not be reached. Check your connection and try again.', 0)
+    }
+    if (!response.ok) {
+      let message = `Request failed (${response.status}).`
+      try {
+        const body = await response.json() as { detail?: unknown }
+        if (typeof body.detail === 'string' && body.detail.trim()) {
+          message = body.detail.trim()
+        } else if (Array.isArray(body.detail)) {
+          const validationMessages = body.detail.flatMap((item: unknown) => {
+            if (typeof item !== 'object' || item === null || !('msg' in item)) return []
+            const detailMessage = item.msg
+            return typeof detailMessage === 'string' && detailMessage.trim() ? [detailMessage.trim()] : []
+          })
+          if (validationMessages.length > 0) message = validationMessages.join(' · ')
+        }
+      } catch { /* Keep the readable fallback. */ }
+      throw new ApiError(message, response.status)
+    }
+    try {
+      return await response.json() as T
+    } catch {
+      if (timedOut) throw new ApiError('ANUBHAV is taking longer to respond. Please try again.', 0)
+      throw new ApiError('The ANUBHAV API returned an unreadable response.', response.status)
+    }
+  } finally {
+    window.clearTimeout(timeout)
+    externalSignal?.removeEventListener('abort', forwardAbort)
   }
-  return await response.json() as T
 }
 
 export function queryString(values: Record<string, string | number | undefined | null>): string {

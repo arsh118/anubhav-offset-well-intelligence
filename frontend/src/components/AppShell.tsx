@@ -16,7 +16,7 @@ const navigation = [
 ]
 
 export function AppShell() {
-  const { wells, activeWellId, setActiveWellId, activeWell, radiusKm, setRadiusKm, depthWindowM, setDepthWindowM, demoMode, startDemoMode, exitDemoMode, apiStatus, wellError, refreshWells } = useApp()
+  const { wells, activeWellId, setActiveWellId, activeWell, radiusKm, setRadiusKm, depthWindowM, setDepthWindowM, demoMode, startDemoMode, exitDemoMode, apiStatus, wellState, wellError, refreshWells } = useApp()
   const activeWells = wells.filter((well) => well.role === 'active')
   const [methodologyOpen, setMethodologyOpen] = useState(false)
   const navigate = useNavigate()
@@ -52,7 +52,7 @@ export function AppShell() {
         <div className="topbar-context"><div className="eyebrow">DRILLING OPERATIONS KNOWLEDGE</div><div className="topbar-title">AI-Powered Offset Well Intelligence</div></div>
         <div className="topbar-tools">
           <label className="top-control well-control"><span>ACTIVE WELL</span><span className="select-wrap"><select value={activeWellId} onChange={(event) => setActiveWellId(event.target.value)} aria-label="Select active well" disabled={!activeWells.length}>
-            {activeWells.length === 0 && <option value="">No active wells available</option>}
+            {activeWells.length === 0 && <option value="">{wellState === 'loading' ? 'Loading active wells…' : wellState === 'error' ? 'Active wells unavailable' : wellState === 'empty' ? 'No active wells available' : 'No active well configured'}</option>}
             {activeWells.map((well) => <option key={well.id} value={well.id}>{well.well_name} · {well.field ?? 'Unassigned field'}</option>)}
           </select><ChevronDown size={14} /></span></label>
           <label className="top-control compact-control"><span>RADIUS</span><span className="select-wrap"><select value={radiusKm} onChange={(event) => setRadiusKm(Number(event.target.value))} aria-label="Offset search radius">
@@ -69,8 +69,8 @@ export function AppShell() {
       </header>
       <div className="provenance-banner"><span className="provenance-mark" /><strong>DECISION SUPPORT</strong><span className="provenance-divider">—</span><span>Engineer review required</span></div>
       <main className="page-content">
-        {!activeWell && apiStatus === 'offline' && wellError && <ErrorState message={wellError} retry={() => void refreshWells()} />}
-        {!activeWell && apiStatus === 'online' && <div className="context-banner"><ShieldCheck size={15} />No active well is configured in the returned data. Select an available active well to load intelligence.</div>}
+        {!activeWell && wellState === 'error' && wellError && <ErrorState title="ANUBHAV is taking longer to respond." message={wellError} retryLabel="TRY AGAIN" retry={() => void refreshWells()} />}
+        {!activeWell && wellState === 'ready' && <div className="context-banner"><ShieldCheck size={15} />No active well is configured in the returned records. Select an available active well to load intelligence.</div>}
         {activeWell && location.pathname !== '/' && <div className="context-line"><span className="context-line-name">{activeWell.well_name}</span><span>{activeWell.field}</span><span className="context-separator">/</span><span>{activeWell.current_depth?.toLocaleString() ?? '—'} m MD</span><span className="context-separator">/</span><span>{activeWell.current_formation?.name ?? 'Formation unavailable'}</span><span className="context-separator">/</span><span className="context-status">{humanize(activeWell.status)}</span></div>}
         <Outlet />
       </main>

@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.intelligence_service import IntelligenceInputError
-from app.predictive_service import PredictiveInputError, predict_historical_categories
 from app.schemas import PredictiveRiskRead, PredictiveRiskRequest
 
 router = APIRouter(prefix="/api/predictive-risk", tags=["prototype predictive analytics"])
@@ -19,6 +18,10 @@ def get_prototype_risk_estimate(
     payload: PredictiveRiskRequest,
     db: Session = Depends(get_db),
 ) -> PredictiveRiskRead:
+    # Keep NumPy and scikit-learn out of API startup; the optional replay model
+    # is imported on demand and Python reuses the loaded module afterward.
+    from app.predictive_service import PredictiveInputError, predict_historical_categories
+
     try:
         return predict_historical_categories(
             db,

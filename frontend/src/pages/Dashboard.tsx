@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Activity, ArrowUpRight, BellRing, BookOpen, Database, MapPin, Radio, ShieldAlert, TriangleAlert } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { api, queryString, type ActiveAlerts, type Alert, type Correlation, type NearbyWell, type OffsetMatch, type OffsetWellSummary } from '../lib/api'
+import { api, DASHBOARD_API_TIMEOUT_MS, queryString, withTransientRetries, type ActiveAlerts, type Alert, type Correlation, type NearbyWell, type OffsetMatch, type OffsetWellSummary } from '../lib/api'
 import { useApp } from '../lib/AppContext'
 import { formatDepth, formatDistance, humanize, signedDepth } from '../lib/format'
 import { EvidenceDrawer } from '../components/EvidenceDrawer'
-import { EmptyState, ErrorState, Loading } from '../components/Feedback'
+import { EmptyState, ErrorState } from '../components/Feedback'
 import { OffsetMap } from '../components/OffsetMap'
 import { DemoScenarioGuide } from '../components/DemoScenarioGuide'
 import { getJudgingPrecedents } from '../lib/demoScenario'
@@ -14,28 +14,26 @@ import { LiveIntelligence } from '../components/LiveIntelligence'
 type DashboardData = { correlation: Correlation; nearby: NearbyWell[]; eventCount: number; alerts: ActiveAlerts }
 
 export function Dashboard() {
-  const { activeWell, activeWellId, radiusKm, depthWindowM, demoMode } = useApp()
+  const { activeWell, activeWellId, radiusKm, depthWindowM, demoMode, wellState } = useApp()
   const [data, setData] = useState<DashboardData | null>(null)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedMatch, setSelectedMatch] = useState<OffsetMatch | null>(null)
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null)
 
   const load = useCallback(async () => {
     if (!activeWellId) { setData(null); return }
-    setLoading(true)
+    setData(null)
     setError(null)
     try {
       const params = queryString({ radius_km: radiusKm, depth_window_m: depthWindowM, limit: 100 })
-      const [correlation, nearbyResponse, eventSummary, alerts] = await Promise.all([
-        api<Correlation>(`/intelligence/${activeWellId}/correlation${params}`),
-        api<{ items: NearbyWell[] }>(`/wells/${activeWellId}/nearby${queryString({ radius_km: radiusKm, limit: 200 })}`),
-        api<{ total: number }>('/events/summary'),
-        api<ActiveAlerts>(`/alerts/active/${activeWellId}${queryString({ radius_km: radiusKm, depth_window_m: depthWindowM })}`),
-      ])
+      const [correlation, nearbyResponse, eventSummary, alerts] = await withTransientRetries(() => Promise.all([
+        api<Correlation>(`/intelligence/${activeWellId}/correlation${params}`, {}, DASHBOARD_API_TIMEOUT_MS),
+        api<{ items: NearbyWell[] }>(`/wells/${activeWellId}/nearby${queryString({ radius_km: radiusKm, limit: 200 })}`, {}, DASHBOARD_API_TIMEOUT_MS),
+        api<{ total: number }>('/events/summary', {}, DASHBOARD_API_TIMEOUT_MS),
+        api<ActiveAlerts>(`/alerts/active/${activeWellId}${queryString({ radius_km: radiusKm, depth_window_m: depthWindowM })}`, {}, DASHBOARD_API_TIMEOUT_MS),
+      ]))
       setData({ correlation, nearby: nearbyResponse.items, eventCount: eventSummary.total, alerts })
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to load dashboard data.') }
-    finally { setLoading(false) }
   }, [activeWellId, radiusKm, depthWindowM])
 
   useEffect(() => { void load() }, [load])
@@ -64,12 +62,15 @@ export function Dashboard() {
     ?? data?.alerts.alerts[0]
     ?? null
 
-  if (!activeWell) return <div className="page-stack"><PageHeading title="Operations overview" subtitle="Evidence-backed historical context for the active well." />{loading ? <Loading /> : error ? <ErrorState message={error} retry={() => void load()} /> : <EmptyState title="No active well available" detail="An active well record is needed before offset relevance can be calculated." />}</div>
+  if (wellState === 'loading') return <DashboardLoadingSkeleton phase="startup" />
+  if (wellState === 'error') return <div className="page-stack"><PageHeading title="ANUBHAV" subtitle="AI-powered offset well intelligence for current drilling decisions." /><div className="context-error-note">Restore the ANUBHAV connection using TRY AGAIN above.</div></div>
+  if (wellState === 'empty') return <div className="page-stack"><PageHeading title="Operations overview" subtitle="Evidence-backed historical context for the active well." /><EmptyState title="No active well available" detail="The API returned an empty well dataset. An active well record is needed before offset relevance can be calculated." /></div>
+  if (!activeWell) return <div className="page-stack"><PageHeading title="Operations overview" subtitle="Evidence-backed historical context for the active well." /><EmptyState title="No active well configured" detail="The API returned well records, but none is marked as the active well." /></div>
 
   return <div className="page-stack dashboard-page">
     <PageHeading title="ANUBHAV" subtitle="AI-powered offset well intelligence for current drilling decisions." />
-    {error && <ErrorState message={error} retry={() => void load()} />}
-    {loading && !data ? <div className="panel loading-panel"><Loading label="Correlating offset wells and historical events" /></div> : data && <>
+    {error && <ErrorState title="ANUBHAV is taking longer to respond." message="The ANUBHAV API could not be reached." retryLabel="TRY AGAIN" retry={() => void load()} />}
+    {!data && !error ? <DashboardLoadingSkeleton phase="dashboard" /> : data && <>
       <section className="active-summary panel" aria-label="Active well summary">
         <div className="active-summary-copy">
           <div className="eyebrow">ACTIVE WELL <span className="active-summary-divider">/</span> {activeWell.field ?? 'FIELD UNASSIGNED'}</div>
@@ -174,6 +175,62 @@ export function Dashboard() {
 
 export function PageHeading({ title, subtitle, action }: { title: string; subtitle: string; action?: ReactNode }) {
   return <div className="page-heading"><div><div className="eyebrow">ANUBHAV / OFFSET WELL INTELLIGENCE</div><h1>{title}</h1><p>{subtitle}</p></div>{action && <div className="page-heading-action">{action}</div>}</div>
+}
+
+const loadingMessages = [
+  'Connecting to ANUBHAV intelligence...',
+  'Loading active well context...',
+  'Loading offset well intelligence...',
+  'Loading historical precedents...',
+  'Preparing drilling insights...',
+]
+
+function DashboardLoadingSkeleton({ phase }: { phase: 'startup' | 'dashboard' }) {
+  const [messageIndex, setMessageIndex] = useState(phase === 'startup' ? 0 : 2)
+  useEffect(() => {
+    const timer = window.setInterval(() => setMessageIndex((index) => (index + 1) % loadingMessages.length), 3_200)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  return <div className="page-stack dashboard-page dashboard-skeleton" aria-busy="true">
+    <PageHeading title="ANUBHAV" subtitle="AI-powered offset well intelligence for current drilling decisions." />
+    <div className="dashboard-connect-status" role="status" aria-live="polite">
+      <span className="dashboard-connect-led" aria-hidden="true" />
+      <div><span className="eyebrow">CONNECTING TO INTELLIGENCE</span><strong>{loadingMessages[messageIndex]}</strong></div>
+    </div>
+
+    <section className="active-summary panel dashboard-skeleton-active" aria-label="Active well loading">
+      <div className="active-summary-copy"><div className="eyebrow">ACTIVE WELL</div><SkeletonShape className="skeleton-well-name" /><SkeletonShape className="skeleton-copy-line" /></div>
+      <div className="active-summary-facts"><div><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-value" /></div><div><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-value skeleton-value-wide" /></div></div>
+      <SkeletonShape className="skeleton-status-pill" />
+    </section>
+
+    <div className="kpi-grid dashboard-skeleton-kpis" aria-label="Dashboard indicators loading">
+      {['teal', 'blue', 'amber', 'red'].map((accent) => <div className={`kpi-card ${accent}`} key={accent}><SkeletonShape className="skeleton-kpi-label" /><SkeletonShape className="skeleton-kpi-value" /><SkeletonShape className="skeleton-kpi-detail" /></div>)}
+    </div>
+
+    <section className="panel dashboard-skeleton-precedent" aria-label="Historical precedent loading">
+      <div className="dashboard-skeleton-section-head"><div><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-heading-line" /></div><SkeletonShape className="skeleton-status-pill" /></div>
+      <div className="dashboard-skeleton-facts">{Array.from({ length: 5 }, (_, index) => <div key={index}><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-value" /></div>)}</div>
+      <SkeletonShape className="skeleton-copy-line skeleton-copy-long" />
+    </section>
+
+    <section className="panel dashboard-skeleton-live" aria-label="Live intelligence loading"><div className="dashboard-skeleton-section-head"><div><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-heading-line" /></div><SkeletonShape className="skeleton-status-pill" /></div><div className="dashboard-skeleton-live-grid">{Array.from({ length: 3 }, (_, index) => <SkeletonShape key={index} className="skeleton-live-card" />)}</div></section>
+
+    <div className="dashboard-spatial-grid dashboard-skeleton-grid">
+      <section className="panel"><div className="panel-heading"><div><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-heading-line" /></div></div><SkeletonShape className="skeleton-map" /></section>
+      <section className="panel"><div className="panel-heading"><div><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-heading-line" /></div></div>{Array.from({ length: 3 }, (_, index) => <SkeletonShape key={index} className="skeleton-nearby-row" />)}</section>
+    </div>
+
+    <div className="dashboard-insight-grid dashboard-skeleton-grid">
+      <section className="panel"><div className="panel-heading"><div><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-heading-line" /></div></div>{Array.from({ length: 4 }, (_, index) => <SkeletonShape key={index} className="skeleton-event-row" />)}</section>
+      <section className="panel"><div className="panel-heading"><div><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-heading-line" /></div></div><SkeletonShape className="skeleton-copy-line" /><SkeletonShape className="skeleton-copy-line" /><SkeletonShape className="skeleton-copy-line skeleton-copy-long" /></section>
+    </div>
+  </div>
+}
+
+function SkeletonShape({ className }: { className: string }) {
+  return <span className={`skeleton-shape ${className}`} aria-hidden="true" />
 }
 
 function Kpi({ icon, label, value, detail, accent }: { icon: ReactNode; label: string; value: string; detail: string; accent: string }) {

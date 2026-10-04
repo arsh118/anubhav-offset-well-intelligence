@@ -6,14 +6,14 @@ import { useApp } from '../lib/AppContext'
 import { formatDate, formatDepth, humanize, signedDepth } from '../lib/format'
 import { DepthCorrelation } from '../components/DepthCorrelation'
 import { EvidenceDrawer } from '../components/EvidenceDrawer'
-import { EmptyState, ErrorState, Loading } from '../components/Feedback'
+import { ActiveWellGate, EmptyState, ErrorState, Loading } from '../components/Feedback'
 import { WellCorrelation } from '../components/WellCorrelation'
 import { PageHeading } from './Dashboard'
 
 type WellData = { detail: Well; correlation: Correlation; alerts: ActiveAlerts }
 
 export function ActiveWellPage() {
-  const { activeWell, activeWellId, radiusKm, depthWindowM } = useApp()
+  const { activeWell, activeWellId, radiusKm, depthWindowM, wellState } = useApp()
   const [data, setData] = useState<WellData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -37,7 +37,7 @@ export function ActiveWellPage() {
   }, [activeWellId, radiusKm, depthWindowM])
   useEffect(() => { void load() }, [load])
 
-  if (!activeWell) return <div className="page-stack"><PageHeading title="Active well" subtitle="Current drilling context and historical precedents." /><EmptyState title="Select an active well" detail="Choose a well from the selector in the header to open its operations summary." /></div>
+  if (!activeWell) return <div className="page-stack"><PageHeading title="Active well" subtitle="Current drilling context and historical precedents." /><ActiveWellGate state={wellState} readyDetail="Choose a well from the selector in the header to open its operations summary." /></div>
 
   return <div className="page-stack">
     <PageHeading title="Active well" subtitle="Current drilling context, nearby analogs, and upcoming historical precedents." action={<Link className="secondary-button" to="/offsets">Review nearby wells <ArrowRight size={14} /></Link>} />

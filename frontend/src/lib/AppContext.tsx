@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { api, type Well } from './api'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { api, ApiError, INITIAL_API_TIMEOUT_MS, withTransientRetries, type Well } from './api'
 import { JUDGING_DEMO } from './demoScenario'
 
 type AppContextValue = {
@@ -15,6 +15,7 @@ type AppContextValue = {
   startDemoMode: () => boolean
   exitDemoMode: () => void
   apiStatus: 'loading' | 'online' | 'offline'
+  wellState: 'loading' | 'ready' | 'empty' | 'error'
   wellError: string | null
   refreshWells: () => Promise<void>
 }
@@ -29,29 +30,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [demoMode, setDemoMode] = useState(false)
   const [apiStatus, setApiStatus] = useState<AppContextValue['apiStatus']>('loading')
   const [wellError, setWellError] = useState<string | null>(null)
+  const refreshInFlight = useRef<Promise<void> | null>(null)
 
-  const refreshWells = async () => {
-    try {
-      const [result, health] = await Promise.all([
-        api<Well[]>('/wells?limit=500'),
-        api<{ status: string; database: string }>('/health').catch(() => null),
-      ])
-      setWells(result)
-      setWellError(null)
-      setApiStatus(health?.status === 'ok' && health.database === 'connected' ? 'online' : 'offline')
-      setActiveWellIdState((current) => {
-        if (result.some((well) => well.id === current)) return current
-        return result.find((well) => well.role === 'active' && well.well_name === 'ANB-01')?.id
-          ?? result.find((well) => well.role === 'active')?.id
-          ?? ''
-      })
-    } catch (error) {
-      setApiStatus('offline')
-      setWellError(error instanceof Error ? error.message : 'Unable to load wells.')
-    }
-  }
+  const refreshWells = useCallback(() => {
+    if (refreshInFlight.current) return refreshInFlight.current
 
-  useEffect(() => { void refreshWells() }, [])
+    setApiStatus('loading')
+    setWellError(null)
+    const request = (async () => {
+      try {
+        await withTransientRetries(async () => {
+          const health = await api<{ status: string; database: string }>('/health', {}, INITIAL_API_TIMEOUT_MS)
+          if (health.status !== 'ok' || health.database !== 'connected') {
+            throw new ApiError('ANUBHAV is not ready to serve dashboard data.', 503)
+          }
+        })
+        const result = await withTransientRetries(() => api<Well[]>('/wells?limit=500', {}, INITIAL_API_TIMEOUT_MS))
+        setWells(result)
+        setWellError(null)
+        setApiStatus('online')
+        setActiveWellIdState((current) => {
+          if (result.some((well) => well.id === current)) return current
+          return result.find((well) => well.role === 'active' && well.well_name === 'ANB-01')?.id
+            ?? result.find((well) => well.role === 'active')?.id
+            ?? ''
+        })
+      } catch {
+        setApiStatus('offline')
+        setWellError('The ANUBHAV API could not be reached.')
+      }
+    })()
+    refreshInFlight.current = request
+    void request.then(() => {
+      if (refreshInFlight.current === request) refreshInFlight.current = null
+    })
+    return request
+  }, [])
+
+  useEffect(() => { void refreshWells() }, [refreshWells])
 
   const setActiveWellId = (id: string) => { setDemoMode(false); setActiveWellIdState(id) }
   const setRadiusKm = (value: number) => { setDemoMode(false); setRadiusKmState(value) }
@@ -67,12 +83,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [wells])
   const exitDemoMode = () => setDemoMode(false)
   const activeWell = wells.find((well) => well.id === activeWellId) ?? null
+  const wellState: AppContextValue['wellState'] = apiStatus === 'loading'
+    ? 'loading'
+    : apiStatus === 'offline'
+      ? 'error'
+      : wells.length === 0 ? 'empty' : 'ready'
   const value = useMemo(() => ({
     wells, activeWell, activeWellId, setActiveWellId,
     radiusKm, setRadiusKm, depthWindowM, setDepthWindowM,
     demoMode, startDemoMode, exitDemoMode,
-    apiStatus, wellError, refreshWells,
-  }), [wells, activeWell, activeWellId, radiusKm, depthWindowM, demoMode, startDemoMode, apiStatus, wellError])
+    apiStatus, wellState, wellError, refreshWells,
+  }), [wells, activeWell, activeWellId, radiusKm, depthWindowM, demoMode, startDemoMode, apiStatus, wellState, wellError, refreshWells])
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
 }

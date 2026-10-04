@@ -4,13 +4,13 @@ import { api, queryString, type ActiveAlerts, type Alert, type AlertStatus, type
 import { useApp } from '../lib/AppContext'
 import { formatDate, formatDepth, formatDistance, humanize, signedDepth } from '../lib/format'
 import { EvidenceDrawer } from '../components/EvidenceDrawer'
-import { EmptyState, ErrorState, Loading } from '../components/Feedback'
+import { ActiveWellGate, EmptyState, ErrorState, Loading } from '../components/Feedback'
 import { PageHeading } from './Dashboard'
 
 type AlertData = { summary: ActiveAlerts; alerts: Alert[]; correlation: Correlation }
 
 export function AlertsPage() {
-  const { activeWell, activeWellId, radiusKm, depthWindowM } = useApp()
+  const { activeWell, activeWellId, radiusKm, depthWindowM, wellState } = useApp()
   const [data, setData] = useState<AlertData | null>(null)
   const [filter, setFilter] = useState<AlertStatus | 'all'>('all')
   const [loading, setLoading] = useState(false)
@@ -38,7 +38,7 @@ export function AlertsPage() {
   const matchedEvent = (alert: Alert): OffsetMatch | undefined => data?.correlation.historical_events.find((event) => event.event_id === alert.historical_event_id)
   const summary = data?.summary
 
-  if (!activeWell) return <div className="page-stack"><PageHeading title="Alerts" subtitle="Review, acknowledge, and annotate historical precedent alerts." /><EmptyState title="Select an active well" detail="The alert register is scoped to the active well selected in the header." /></div>
+  if (!activeWell) return <div className="page-stack"><PageHeading title="Alerts" subtitle="Review, acknowledge, and annotate historical precedent alerts." /><ActiveWellGate state={wellState} readyDetail="The alert register is scoped to the active well selected in the header." /></div>
   return <div className="page-stack">
     <PageHeading title="Historical precedent alerts" subtitle="Review evidence-backed signals generated from nearby well events." action={<span className="radius-summary"><BellRing size={14} />{activeWell.well_name}</span>} />
     {error && <ErrorState message={error} retry={() => void load()} />}

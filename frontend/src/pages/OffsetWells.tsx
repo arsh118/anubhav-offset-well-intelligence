@@ -4,14 +4,14 @@ import { api, queryString, type Correlation, type NearbyWell, type OffsetMatch, 
 import { useApp } from '../lib/AppContext'
 import { formatDepth, formatDistance, humanize } from '../lib/format'
 import { EvidenceDrawer } from '../components/EvidenceDrawer'
-import { EmptyState, ErrorState, Loading } from '../components/Feedback'
+import { ActiveWellGate, EmptyState, ErrorState, Loading } from '../components/Feedback'
 import { OffsetMap } from '../components/OffsetMap'
 import { PageHeading } from './Dashboard'
 
 type OffsetData = { nearby: NearbyWell[]; correlation: Correlation }
 
 export function OffsetWellsPage() {
-  const { activeWell, activeWellId, radiusKm, depthWindowM } = useApp()
+  const { activeWell, activeWellId, radiusKm, depthWindowM, wellState } = useApp()
   const [data, setData] = useState<OffsetData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -47,7 +47,7 @@ export function OffsetWellsPage() {
   const selectedWell = filtered.find((well) => well.id === selectedWellId)
   const selectedEvents = data?.correlation.historical_events.filter((event) => event.offset_well.id === selectedWellId) ?? []
 
-  if (!activeWell) return <div className="page-stack offset-wells-page"><PageHeading title="Offset wells" subtitle="Nearby analog wells and their correlated historical records." /><EmptyState title="Select an active well" detail="Nearby distances are calculated relative to the active well selected in the header." /></div>
+  if (!activeWell) return <div className="page-stack offset-wells-page"><PageHeading title="Offset wells" subtitle="Nearby analog wells and their correlated historical records." /><ActiveWellGate state={wellState} readyDetail="Nearby distances are calculated relative to the active well selected in the header." /></div>
   return <div className="page-stack offset-wells-page">
     <PageHeading title="Offset wells" subtitle={`Nearby wells and source-backed events relative to ${activeWell.well_name}.`} action={<span className="radius-summary"><LocateFixed size={14} />{radiusKm} km search radius</span>} />
     {error && <ErrorState message={error} retry={() => void load()} />}

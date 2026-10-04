@@ -1,8 +1,7 @@
-import { Circle, CircleMarker, MapContainer, Marker, Popup, TileLayer, Tooltip } from 'react-leaflet'
+import { Circle, MapContainer, Marker, Popup, TileLayer, Tooltip } from 'react-leaflet'
 import L from 'leaflet'
 import { Map as MapIcon } from 'lucide-react'
 import type { OffsetMatch, OffsetWellSummary, Well } from '../lib/api'
-import { formatDepth } from '../lib/format'
 
 type Props = { activeWell: Well; offsets: OffsetWellSummary[]; events: OffsetMatch[]; radiusKm: number; selectedWellId?: string; onSelectWell?: (id: string) => void }
 
@@ -29,14 +28,6 @@ export function OffsetMap({ activeWell, offsets, events, radiusKm, selectedWellI
         <Popup><div className="map-popup"><strong>{offset.well_name}</strong><span>{offset.distance_km.toFixed(1)} km from {activeWell.well_name}</span><span>{hasEvents ? `${offset.matching_event_count} correlated historical event${offset.matching_event_count === 1 ? '' : 's'}` : 'No event in current correlation window'}</span></div></Popup>
         <Tooltip direction="top" offset={[0, -8]}>{offset.well_name}{hasEvents ? ' · historical match' : ''}</Tooltip>
       </Marker>
-    })}
-    {events.map((event, index) => {
-      const lat = event.offset_well.latitude
-      const lon = event.offset_well.longitude
-      if (lat == null || lon == null) return null
-      return <CircleMarker key={`${event.event_id}-${index}`} center={[lat, lon]} radius={5} pathOptions={{ color: '#07131d', weight: 1.5, fillColor: event.relevance_band === 'high' ? '#ed9c54' : '#67cbb0', fillOpacity: 1 }}>
-        <Tooltip>{event.event_title} · {formatDepth(event.historical_depth_m)}</Tooltip>
-      </CircleMarker>
     })}
   </MapContainer>
 }

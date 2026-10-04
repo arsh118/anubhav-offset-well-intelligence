@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { BellRing, CheckCheck, Filter, ShieldCheck } from 'lucide-react'
+import { BellRing, Check, Filter } from 'lucide-react'
 import { api, queryString, type ActiveAlerts, type Alert, type AlertStatus, type Correlation, type OffsetMatch } from '../lib/api'
 import { useApp } from '../lib/AppContext'
-import { formatDate, formatDepth, formatDistance, humanize, signedDepth } from '../lib/format'
+import { humanize } from '../lib/format'
 import { EvidenceDrawer } from '../components/EvidenceDrawer'
 import { ActiveWellGate, EmptyState, ErrorState, Loading } from '../components/Feedback'
 import { PageHeading } from './Dashboard'
@@ -17,6 +17,7 @@ export function AlertsPage() {
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Alert | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [busyAlertId, setBusyAlertId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!activeWellId) return
@@ -40,24 +41,32 @@ export function AlertsPage() {
   const matchedEvent = (alert: Alert): OffsetMatch | undefined => data?.correlation.historical_events.find((event) => event.event_id === alert.historical_event_id)
   const summary = data?.summary
 
-  if (!activeWell) return <div className="page-stack"><PageHeading title="Alerts" subtitle="Review, acknowledge, and annotate historical precedent alerts." /><ActiveWellGate state={wellState} readyDetail="The alert register is scoped to the active well selected in the header." /></div>
+  const acknowledge = async (alert: Alert) => {
+    setBusyAlertId(alert.id); setError(null)
+    try {
+      await api<Alert>(`/alerts/${alert.id}/acknowledge`, { method: 'POST' })
+      setNotice('Alert acknowledged.')
+      await load()
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to acknowledge alert.') }
+    finally { setBusyAlertId(null) }
+  }
+
+  if (!activeWell) return <div className="page-stack"><PageHeading title="Alerts" subtitle="" /><ActiveWellGate state={wellState} readyDetail="Select an active well to review its alert register." /></div>
   return <div className="page-stack">
-    <PageHeading title="Historical precedent alerts" subtitle="Review evidence-backed signals generated from nearby well events." action={<span className="radius-summary"><BellRing size={14} />{activeWell.well_name}</span>} />
+    <PageHeading title="Alerts" subtitle="" action={<span className="radius-summary"><BellRing size={14} />{activeWell.well_name}</span>} />
     {error && <ErrorState message={error} retry={() => void load()} />}
     {loading && !data ? <div className="panel loading-panel"><Loading label="Loading historical alert workflow" /></div> : data && <>
-      {summary && <div className={`alert-overview-banner ${summary.category}`}><span className="alert-overview-icon"><ShieldCheck size={18} /></span><div><div className="eyebrow">CURRENT CONTEXT · {summary.category.replace(/_/g, ' ').toUpperCase()}</div><strong>{summary.title}</strong><details className="alert-overview-details"><summary>Context</summary><p>{summary.summary}</p></details></div><div className="alert-overview-count"><strong>{summary.matching_event_count}</strong><span>matched · {summary.future_depth_window_m} m window</span></div></div>}
+      {summary && <details className="alert-context-details"><summary>{humanize(summary.category)} · {summary.matching_event_count} matches · {summary.future_depth_window_m} m window</summary><p>{summary.summary}</p></details>}
       <section className="panel"><div className="panel-heading"><div><div className="eyebrow">ENGINEER REVIEW WORKFLOW</div><h2>Alert register <span className="inline-count">{visible.length}</span></h2></div><label className="filter-select"><Filter size={14} /><select aria-label="Filter alerts by status" value={filter} onChange={(event) => setFilter(event.target.value as AlertStatus | 'all')}><option value="all">All statuses</option><option value="open">Open</option><option value="acknowledged">Acknowledged</option><option value="reviewed">Reviewed</option><option value="dismissed">Dismissed</option></select></label></div>
         {visible.length === 0 ? <EmptyState title={filter === 'all' ? 'No historical precedent alerts' : `No ${humanize(filter).toLowerCase()} alerts`} detail="No alert records match this active well and current context. Historical records remain available in Knowledge." /> : <div className="alert-priority-list">{visible.map((alert) => {
           const match = matchedEvent(alert)
           return <article className="alert-priority-card" key={alert.id}>
-            <div className="alert-priority-main"><span className={`event-dot ${alert.relevance_score >= 75 ? 'high' : 'medium'}`} /><div><span className="eyebrow">{alert.relevance_score >= 75 ? 'HIGH' : 'MEDIUM'} HISTORICAL RELEVANCE</span><h3>{alert.alert_title}</h3></div><span className={`status-pill ${alert.status}`}>{humanize(alert.status)}</span></div>
-            <div className="alert-priority-facts"><span><small>OFFSET WELL</small><strong>{match?.offset_well.well_name ?? match?.offset_well.field ?? 'Offset well'}</strong></span><span><small>HISTORICAL DEPTH</small><strong>{formatDepth(match?.historical_depth_m)}</strong></span><span><small>DEPTH RELATION</small><strong>{match ? signedDepth(match.depth_difference_m) : 'Unavailable'}</strong></span><span><small>DISTANCE</small><strong>{formatDistance(alert.distance_km ?? match?.distance_km)}</strong></span><span><small>FORMATION</small><strong>{match?.formation?.name ?? 'Not recorded'}</strong></span><span><small>RELEVANCE</small><strong>{Math.round(alert.relevance_score)} / 100</strong></span></div>
-            <div className="alert-priority-actions"><button className="secondary-button" onClick={() => setSelected(alert)}>View evidence</button><button className="primary-button" onClick={() => setSelected(alert)}><CheckCheck size={14} /> Review alert</button><small>Created {formatDate(alert.created_at)}</small></div>
+            <div className="alert-priority-main"><span className={`event-dot ${alert.relevance_score >= 75 ? 'high' : 'medium'}`} /><div><span className="eyebrow">{alert.relevance_score >= 75 ? 'HIGH' : 'MEDIUM'} HISTORICAL RELEVANCE</span><h3>{humanize(match?.event_type ?? alert.alert_type)}</h3><p>{match?.offset_well.well_name ?? match?.offset_well.field ?? 'Offset well'} <span>·</span> {match ? `${Math.abs(Math.round(match.depth_difference_m))} m ${match.depth_difference_m > 0 ? 'ahead' : match.depth_difference_m < 0 ? 'behind' : 'at depth'}` : 'Depth relation unavailable'}</p></div><span className={`status-pill ${alert.status}`}>{humanize(alert.status)}</span></div>
+            <div className="alert-priority-actions"><button className="secondary-button" onClick={() => setSelected(alert)}>View</button>{alert.status === 'open' && <button className="primary-button" onClick={() => void acknowledge(alert)} disabled={busyAlertId === alert.id}><Check size={14} />{busyAlertId === alert.id ? 'Saving…' : 'Acknowledge'}</button>}</div>
           </article>
         })}</div>}
-        <div className="alert-panel-footer"><span>Alert status is an engineer review workflow, not a prediction of an incident.</span><span>Updates are saved to the ANUBHAV API.</span></div>
       </section>
-      <div className="alert-workflow-note"><span className="workflow-note-mark" /><div><strong>Review workflow</strong><span>Open → Acknowledged → Reviewed · Engineers can add a note to preserve review context.</span></div></div>
+      <details className="alert-workflow-details"><summary>Review workflow</summary><p>Open → Acknowledged → Reviewed. Engineers can add a note in alert details.</p></details>
       {notice && <div className="inline-notice">{notice}</div>}
     </>}
     {selected && <EvidenceDrawer key={selected.id} alert={selected} match={matchedEvent(selected)} relatedMatches={data?.correlation.historical_events} onClose={() => setSelected(null)} onUpdated={() => { setNotice('Alert changes saved.'); void load() }} />}

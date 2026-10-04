@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AppProvider } from '../lib/AppContext'
 import type { Document, Evidence, Formation, Well, WellEvent } from '../lib/api'
@@ -56,17 +56,18 @@ describe('knowledge repository presentation', () => {
       <AppProvider><Routes><Route path="/knowledge" element={<KnowledgePage />} /></Routes></AppProvider>
     </MemoryRouter>)
 
-    expect(await screen.findByText('Mud loss reported in X Formation')).toBeTruthy()
-    expect(screen.getByText((_text, element) => element?.textContent === 'Challenge / summary: A separate offset record notes mud loss deeper in X Formation.')).toBeTruthy()
-    expect(screen.getAllByText('Recorded mitigation').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('The report describes a loss-control treatment followed by monitored circulation.').length).toBeGreaterThan(0)
+    expect(await screen.findByText('Lost Circulation')).toBeTruthy()
     expect(screen.getByText('ANB-04')).toBeTruthy()
     expect(screen.getByText('2,875 m')).toBeTruthy()
-    expect(screen.getAllByText('X Formation').length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('DDR-ANB-02-2024-07.pdf')).toBeTruthy()
-    expect(screen.getByText('Seeded Demo Evidence · Page 3')).toBeTruthy()
+    expect(screen.getByText('Seeded · p.3')).toBeTruthy()
+    expect(screen.getByText('MITIGATION')).toBeTruthy()
+    expect(screen.getAllByText('The report describes a loss-control treatment followed by monitored circulation.').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('X Formation').length).toBeGreaterThanOrEqual(2)
+    fireEvent.click(screen.getByText('Event and evidence details'))
+    expect(screen.getByText('Mud loss reported in X Formation')).toBeTruthy()
+    expect(screen.getByText((_text, element) => element?.tagName === 'P' && Boolean(element.textContent?.includes('A separate offset record notes mud loss deeper in X Formation.')))).toBeTruthy()
     expect(screen.getByText((_text, element) => element?.tagName === 'BLOCKQUOTE' && Boolean(element.textContent?.includes(evidence.excerpt)))).toBeTruthy()
-    expect(screen.getByText('Representative Synthetic Demo Data')).toBeTruthy()
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/knowledge/search?q=mud+losses'))).toBe(true)
   })
 })

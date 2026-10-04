@@ -1,8 +1,7 @@
-import { Activity, Bell, BookOpen, ChevronDown, Compass, FileText, Layers3, MapPinned, ShieldCheck, Waves, CircleHelp } from 'lucide-react'
+import { Activity, Bell, BookOpen, ChevronDown, FileText, Layers3, MapPinned, ShieldCheck, Waves, CircleHelp } from 'lucide-react'
 import { useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useApp } from '../lib/AppContext'
-import { humanize } from '../lib/format'
 import { ErrorState } from './Feedback'
 import { MethodologyDrawer } from './MethodologyDrawer'
 
@@ -20,7 +19,6 @@ export function AppShell() {
   const activeWells = wells.filter((well) => well.role === 'active')
   const [methodologyOpen, setMethodologyOpen] = useState(false)
   const navigate = useNavigate()
-  const location = useLocation()
 
   const toggleDemoMode = () => {
     if (demoMode) {
@@ -41,8 +39,6 @@ export function AppShell() {
         </NavLink>)}
       </nav>
       <div className="sidebar-bottom">
-        <div className="data-source"><span className="source-dot" /><div><strong>Representative Synthetic Demo Data</strong><small>Public / illustrative only</small></div></div>
-        <div className="sidebar-disclaimer">Source-linked history · engineer review required</div>
         <div className="sidebar-version">ANUBHAV MVP <span>·</span> SIH 2026</div>
       </div>
     </aside>
@@ -66,14 +62,12 @@ export function AppShell() {
           <div className={`system-status ${apiStatus}`} title={apiStatus === 'online' ? 'API and database reachable' : 'API status'}><span className="status-led" />{apiStatus === 'online' ? 'SYSTEM ONLINE' : apiStatus === 'loading' ? 'CONNECTING' : 'API OFFLINE'}</div>
         </div>
       </header>
-      <div className="provenance-banner"><span className="provenance-mark" /><strong>DECISION SUPPORT</strong><span className="provenance-divider">—</span><span>Engineer review required</span></div>
+      <div className="provenance-banner"><span className="provenance-mark" /><strong>REPRESENTATIVE SYNTHETIC DATA</strong></div>
       <main className="page-content">
         {!activeWell && wellState === 'error' && wellError && <ErrorState title="ANUBHAV is taking longer to respond." message={wellError} retryLabel="TRY AGAIN" retry={() => void refreshWells()} />}
         {!activeWell && wellState === 'ready' && <div className="context-banner"><ShieldCheck size={15} />No active well is configured in the returned records. Select an available active well to load intelligence.</div>}
-        {activeWell && location.pathname !== '/' && <div className="context-line"><span className="context-line-name">{activeWell.well_name}</span><span>{activeWell.field}</span><span className="context-separator">/</span><span>{activeWell.current_depth?.toLocaleString() ?? '—'} m MD</span><span className="context-separator">/</span><span>{activeWell.current_formation?.name ?? 'Formation unavailable'}</span><span className="context-separator">/</span><span className="context-status">{humanize(activeWell.status)}</span></div>}
         <Outlet />
       </main>
-      <footer className="page-footer"><span><Compass size={13} /> Historical evidence supports review; it does not predict incidents.</span><span>Representative synthetic demo data</span></footer>
     </div>
     {methodologyOpen && activeWellId && <MethodologyDrawer activeWellId={activeWellId} radiusKm={radiusKm} depthWindowM={depthWindowM} onClose={() => setMethodologyOpen(false)} />}
   </div>

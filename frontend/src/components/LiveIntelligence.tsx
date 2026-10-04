@@ -91,6 +91,7 @@ export function LiveIntelligence({ activeWellId, radiusKm, depthWindowM }: { act
     .filter((item): item is { alert: Alert; match: OffsetMatch } => item.match !== null), [evaluation])
   const nearestAlert = upcomingPrecedents[0]?.alert ?? null
   const alertMatch = upcomingPrecedents[0]?.match ?? null
+  const primarySignal = evaluation?.prediction.status === 'available' ? evaluation.prediction.signals[0] : undefined
   const supportingWells = Array.from(new Set((evaluation?.correlation.historical_events ?? [])
     .filter((match) => match.formation_match === 'exact' && match.depth_difference_m > 0)
     .map((match) => match.offset_well.well_name))).slice(0, 4)
@@ -103,15 +104,32 @@ export function LiveIntelligence({ activeWellId, radiusKm, depthWindowM }: { act
 
   return <section className="panel live-intelligence" aria-label="Live intelligence">
     <div className="panel-heading">
-      <div><div className="eyebrow">REPLAY MONITORING</div><h2><Activity size={18} /> Live Intelligence</h2></div>
+      <div><div className="eyebrow">LIVE MONITORING</div><h2><Activity size={18} /> Live monitoring</h2></div>
       <div className="live-panel-actions">
-        <span className={`live-monitor-status ${running ? 'running' : ''}`}><i />{running ? 'MONITORING REPLAY' : index === (feed?.states.length ?? 0) - 1 && index > 0 ? 'REPLAY COMPLETE' : 'PAUSED'}</span>
-        {running ? <button type="button" className="secondary-button" onClick={() => setRunning(false)}><CirclePause size={15} /> Pause replay</button> : <button type="button" className="primary-button" onClick={start} disabled={!feed?.states.length} aria-label="Start live monitoring replay"><Activity size={15} /> Start replay</button>}
+        <span className={`live-monitor-status ${running ? 'running' : ''}`}><i />{running ? 'MONITORING' : index === (feed?.states.length ?? 0) - 1 && index > 0 ? 'COMPLETE' : 'READY'}</span>
+        {running ? <button type="button" className="secondary-button" onClick={() => setRunning(false)}><CirclePause size={15} /> Pause</button> : <button type="button" className="primary-button" onClick={start} disabled={!feed?.states.length} aria-label="Start live monitoring replay"><Activity size={15} /> Start monitoring</button>}
         <button type="button" className="quiet-live-button" onClick={() => { setRunning(false); setIndex(0) }} disabled={!feed?.states.length} aria-label="Reset replay"><RotateCcw size={15} /> Reset</button>
       </div>
     </div>
     {loading || (!feed && !feedError) ? <div className="live-loading-skeleton" aria-label="Loading live intelligence" aria-busy="true"><span className="eyebrow">LOADING HISTORICAL INTELLIGENCE</span><div><i /><i /><i /></div></div> : feedError ? <ErrorState message={feedError} retry={() => { setFeedError(null); setFeedRevision((value) => value + 1) }} /> : !state ? <EmptyState title="No simulated drilling samples are seeded for this well." detail="The historical well repository remains available; a live replay sequence is not currently available." /> : <>
-      <div className="live-synthetic-banner"><strong>SIMULATED eRTMAC</strong><span>Representative Synthetic Data</span><span>No connection to OIL's actual eRTMAC system</span></div>
+      <div className="live-summary-grid">
+        <div><span>DEPTH</span><strong>{state.measurement.measured_depth_m.toLocaleString()} m</strong></div>
+        <div><span>FORMATION</span><strong>{state.formation ?? 'Not recorded'}</strong></div>
+        <div><span>STATUS</span><strong>{running ? 'MONITORING' : 'READY'}</strong></div>
+        <div className="live-upcoming-summary"><span>UPCOMING</span>{alertMatch && nearestAlert?.depth_difference_m != null ? <><strong>{formatEventType(alertMatch.event_type)}</strong><small>{nearestAlert.depth_difference_m} m ahead</small><button className="inline-link" onClick={() => setSelectedEvidence(alertMatch)}>View evidence</button></> : <strong>{evaluation ? 'No upcoming precedent' : 'Evaluating'}</strong>}</div>
+      </div>
+      <div className="live-risk-summary">
+        <div><span>PROTOTYPE RISK SIGNAL</span><strong>{primarySignal ? `${primarySignal.risk_type} · ${Math.round(primarySignal.probability * 100)}%` : evaluation ? 'No available signal' : 'Evaluating'}</strong><small>Engineer review required</small></div>
+        <details className="live-model-details"><summary>View model details</summary>
+          {evaluation?.prediction.notice && <p className="live-model-disclaimer-copy">{evaluation.prediction.notice}</p>}
+          {primarySignal && <RiskSignal signal={primarySignal} onSelectEvidence={setSelectedEvidence} />}
+          {evaluation?.prediction.signals && evaluation.prediction.signals.length > 1 && <details className="live-additional-signals"><summary>Additional prototype signals ({evaluation.prediction.signals.length - 1})</summary>{evaluation.prediction.signals.slice(1).map((signal) => <RiskSignal key={signal.risk_type} signal={signal} onSelectEvidence={setSelectedEvidence} />)}</details>}
+          <small className="live-model-notice">Probabilities are uncalibrated historical decision-support signals.</small>
+        </details>
+      </div>
+      <details className="live-replay-details">
+        <summary>Replay, drilling parameters and historical context</summary>
+      <div className="live-synthetic-banner"><strong>SIMULATED eRTMAC</strong><span>Representative synthetic data</span><span>No connection to OIL's actual eRTMAC system</span></div>
       <div className="live-dashboard-grid">
         <div className="live-replay-column">
           <div className="live-current-row">
@@ -158,21 +176,6 @@ export function LiveIntelligence({ activeWellId, radiusKm, depthWindowM }: { act
             </details>}
           </> : <EmptyState title="No significant historical precedent at this replay depth." detail="This reflects the representative historical records in the configured radius and depth window." />}
         </div>
-        <div className="live-model-card">
-          <div className="live-card-heading"><Activity size={16} /><span>PROTOTYPE ML SIGNAL</span><small>{evaluation?.prediction.model_version ?? 'Prototype'}</small></div>
-          <div className="live-model-disclaimer">
-            <strong>{evaluation?.prediction.notice ?? 'Prototype model — evaluation limited by representative synthetic data.'}</strong>
-            <span>Engineer review required.</span>
-          </div>
-          {evaluation?.prediction.status === 'available' ? <>
-            {evaluation.prediction.signals[0] && <RiskSignal signal={evaluation.prediction.signals[0]} onSelectEvidence={setSelectedEvidence} />}
-            {evaluation.prediction.signals.length > 1 && <details className="live-additional-signals">
-              <summary>Additional prototype signals ({evaluation.prediction.signals.length - 1})</summary>
-              {evaluation.prediction.signals.slice(1).map((signal) => <RiskSignal key={signal.risk_type} signal={signal} onSelectEvidence={setSelectedEvidence} />)}
-            </details>}
-            <small className="live-model-notice">Probabilities are uncalibrated historical decision-support signals.</small>
-          </> : evaluation ? <div className="live-insufficient">{evaluation.prediction.message ?? 'Insufficient matching historical event data for this context.'}</div> : <Loading label="Fitting deterministic demo classifier" />}
-        </div>
         </div>
       </div>
       {evaluation?.alerts.recommendation && <details className="live-secondary-details">
@@ -182,7 +185,8 @@ export function LiveIntelligence({ activeWellId, radiusKm, depthWindowM }: { act
         <div className="live-recommendation-source"><strong>{evaluation.alerts.recommendation.source_event_title} · {evaluation.alerts.recommendation.source_well_name} · {evaluation.alerts.recommendation.source_document} · p.{evaluation.alerts.recommendation.source_page ?? '—'}</strong><span>{evaluation.alerts.recommendation.recorded_mitigation}</span><small>{evaluation.alerts.recommendation.evidence_excerpt}</small></div>
         </div>
       </details>}
-      <details className="live-secondary-details"><summary>Evidence workflow and additional replay details</summary><div className="live-workflow">CURRENT WELL <i /> DEPTH / FORMATION <i /> HISTORICAL PRECEDENT <i /> SOURCE EVIDENCE <i /> RECORDED MITIGATION <i /> ENGINEER REVIEW</div></details>
+      <details className="live-secondary-details"><summary>Evidence workflow</summary><div className="live-workflow">CURRENT WELL <i /> DEPTH / FORMATION <i /> HISTORICAL PRECEDENT <i /> SOURCE EVIDENCE <i /> RECORDED MITIGATION <i /> ENGINEER REVIEW</div></details>
+      </details>
     </>}
     {selectedEvidence && <EvidenceDrawer match={selectedEvidence} relatedMatches={evaluation?.correlation.historical_events} onClose={() => setSelectedEvidence(null)} />}
   </section>

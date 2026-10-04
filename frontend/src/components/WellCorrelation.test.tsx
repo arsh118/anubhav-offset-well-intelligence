@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { Correlation } from '../lib/api'
 import { WellCorrelation } from './WellCorrelation'
 
@@ -80,8 +80,16 @@ describe('well correlation comparison', () => {
   it('shows active versus offset evidence and representative geological and drilling descriptors', () => {
     render(<WellCorrelation correlation={correlation} />)
 
-    expect(screen.getByText('ACTIVE WELL')).toBeTruthy()
-    expect(screen.getByText('OFFSET WELL')).toBeTruthy()
+    fireEvent.click(screen.getByText(/Geology, reservoir and drilling details/))
+    fireEvent.click(screen.getByText('Depth and trajectory'))
+    fireEvent.click(screen.getByText('Geology and lithology'))
+    fireEvent.click(screen.getByText('Reservoir'))
+    fireEvent.click(screen.getByText('Drilling parameters and historical events'))
+    fireEvent.click(screen.getByText('Why these wells'))
+    fireEvent.click(screen.getByText('Comparison notes'))
+
+    expect(screen.getAllByText('ACTIVE WELL').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('OFFSET WELL').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Same formation: X Formation').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Historical event 23 m ahead of active depth: Partial lost circulation in X Formation').length).toBeGreaterThan(0)
     expect(screen.getAllByText('Normalized: x formation · Aliases: x-fm')).toHaveLength(2)
@@ -96,6 +104,6 @@ describe('well correlation comparison', () => {
     expect(screen.getByText('Torque')).toBeTruthy()
     expect(screen.getByText('Historical events')).toBeTruthy()
     expect(screen.getAllByText(/Representative Synthetic Demo Data/).length).toBeGreaterThan(0)
-    expect(screen.getByText(/not expert validated or OIL-approved limits/)).toBeTruthy()
+    expect(screen.getByText(/not expert-validated limits/)).toBeTruthy()
   })
 })

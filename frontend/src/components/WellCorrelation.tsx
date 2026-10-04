@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { ArrowDownRight, ArrowUpRight, GitCompareArrows } from 'lucide-react'
 import type { Correlation, OffsetMatch, ParameterComparison, WellCorrelationComparison } from '../lib/api'
+import { humanize } from '../lib/format'
 import { EvidenceDrawer } from './EvidenceDrawer'
 
 type Metric = { key: string; label: string }
@@ -70,6 +71,7 @@ export function WellCorrelation({ correlation }: { correlation: Correlation }) {
   const offsetEventDepth = closest?.historical_events[0]?.historical_depth_m
   const offsetDepth = offsetSampleDepth ?? offsetEventDepth ?? closest?.offset_well.current_depth ?? null
   const depthLabel = offsetSampleDepth != null ? 'Offset sample depth' : offsetEventDepth != null ? 'Offset event depth' : 'Offset measured depth'
+  const depthDifference = closest?.depth_alignment_m ?? (activeDepth != null && offsetDepth != null ? Math.abs(activeDepth - offsetDepth) : null)
   const offsetFormation = closest?.offset_formation_interval?.formation.name ?? closest?.offset_well.current_formation?.name ?? 'Not recorded'
   const activeFormation = activeInterval?.formation.name ?? active.active_formation ?? 'Not recorded'
   const renderMetrics = (metrics: Metric[]) => metrics.map((metric) => {
@@ -84,74 +86,42 @@ export function WellCorrelation({ correlation }: { correlation: Correlation }) {
       })}
     </tr>
   })
+  const renderTableHead = () => <thead><tr><th scope="col">Parameter</th><th scope="col"><span className="correlation-well-label">ACTIVE WELL</span><strong>{active.well_name}</strong><small>{activeDepth?.toLocaleString() ?? '—'} m MD · {activeFormation}</small></th>{comparable.map((row) => <th scope="col" key={row.offset_well.id}><span className="correlation-well-label">OFFSET WELL</span><strong>{row.offset_well.well_name}</strong><small>{row.distance_km.toFixed(1)} km · {row.formation_match} match</small><small>Geology {row.geological_similarity == null ? '—' : `${Math.round(row.geological_similarity * 100)}%`} · Reservoir {row.reservoir_similarity == null ? '—' : `${Math.round(row.reservoir_similarity * 100)}%`}</small><ul className="well-correlation-reasons">{row.comparison_reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul><small className="correlation-source">{row.source_label}</small></th>)}</tr></thead>
+  const renderTable = (rows: ReactNode) => <div className="well-correlation-scroll"><table className="well-correlation-table">{renderTableHead()}<tbody>{rows}</tbody></table></div>
+  const formationRows = <>
+    <tr><th scope="row">Formation</th><td>{activeInterval?.formation.name ?? active.active_formation ?? '—'}{activeInterval && <small className="table-secondary">Normalized: {activeInterval.formation.normalized_name} · Aliases: {activeInterval.formation.aliases.join(', ') || '—'}</small>}</td>{comparable.map((row) => { const interval = offsetInterval(row); return <td key={row.offset_well.id}>{interval?.formation.name ?? '—'}{interval && <small className="table-secondary">Normalized: {interval.formation.normalized_name} · Aliases: {interval.formation.aliases.join(', ') || '—'}</small>}</td> })}</tr>
+    <tr><th scope="row">Lithology</th><td><DescriptorCell value={activeInterval?.lithology} /></td>{comparable.map((row) => <td key={row.offset_well.id}><DescriptorCell value={offsetInterval(row)?.lithology} /></td>)}</tr>
+    <tr><th scope="row">Geological zone</th><td><DescriptorCell value={activeInterval?.geological_zone} /></td>{comparable.map((row) => <td key={row.offset_well.id}><DescriptorCell value={offsetInterval(row)?.geological_zone} /></td>)}</tr>
+  </>
+  const reservoirRows = <>
+    <tr><th scope="row">Reservoir / zone</th><td><DescriptorCell value={activeInterval?.reservoir_zone} /></td>{comparable.map((row) => <td key={row.offset_well.id}><DescriptorCell value={offsetInterval(row)?.reservoir_zone} /></td>)}</tr>
+    <tr><th scope="row">Pressure indicator</th><td><DescriptorCell value={activeInterval?.pressure_indicator} /></td>{comparable.map((row) => <td key={row.offset_well.id}><DescriptorCell value={offsetInterval(row)?.pressure_indicator} /></td>)}</tr>
+    <tr><th scope="row">Porosity</th><td><DescriptorCell value={activeInterval?.porosity_percent} unit="%" /></td>{comparable.map((row) => <td key={row.offset_well.id}><DescriptorCell value={offsetInterval(row)?.porosity_percent} unit="%" /></td>)}</tr>
+    <tr><th scope="row">Permeability</th><td><DescriptorCell value={activeInterval?.permeability_md} unit=" mD" /></td>{comparable.map((row) => <td key={row.offset_well.id}><DescriptorCell value={offsetInterval(row)?.permeability_md} unit=" mD" /></td>)}</tr>
+  </>
+  const drillingRows = <>
+    {renderMetrics(DRILLING_METRICS)}
+    <tr><th scope="row">Historical events</th><td>Current depth {active.active_depth_m?.toLocaleString() ?? '—'} m MD</td>{comparable.map((row) => <td key={row.offset_well.id}>{row.historical_events.length === 0 ? <small className="table-secondary">No matched event in depth window</small> : <div className="well-correlation-events">{row.historical_events.map((event) => <button type="button" key={event.event_id} onClick={() => setSelectedMatch(event)}><strong>{event.event_title}</strong><small>{event.historical_depth_m.toLocaleString()} m MD · {signedDepth(event.depth_difference_m)} · {event.source_document.filename} · p.{event.source_page ?? '—'}</small><span>View evidence</span></button>)}</div>}</td>)}</tr>
+    <tr><th scope="row">Cementing metadata</th><td>{activeParameters?.cementing_metadata ?? '—'}</td>{comparable.map((row) => <td key={row.offset_well.id}>{row.offset_drilling_parameters?.cementing_metadata ?? '—'}</td>)}</tr>
+  </>
 
   return <section className="panel well-correlation-panel" aria-label="Well correlation">
-    <div className="panel-heading">
-      <div><div className="eyebrow">GEOLOGY · RESERVOIR · DRILLING</div><h2>Well Correlation</h2></div>
-      <span className="panel-meta"><GitCompareArrows size={14} /> {comparable.length} nearby comparisons</span>
-    </div>
-    <div className="well-correlation-context">
-      <strong>{active.well_name}</strong><span>{active.active_depth_m?.toLocaleString() ?? '—'} m MD</span>
-      <span>{activeInterval?.formation.name ?? active.active_formation ?? 'Formation unavailable'}</span>
-      <span>{activeInterval?.lithology ?? 'Lithology unavailable'}</span>
-      <small>{correlation.data_notice}</small>
-    </div>
+    <div className="panel-heading"><div><div className="eyebrow">OFFSET COMPARISON</div><h2>Well correlation</h2></div><span className="panel-meta"><GitCompareArrows size={14} /> {comparable.length} offsets</span></div>
     {comparable.length === 0 ? <div className="empty-state"><strong>No offset wells are available for parameter comparison.</strong><p>Increase the configured radius or check the active well coordinates.</p></div> : <>
-      <div className="correlation-comparison-heading"><span className="eyebrow">CLOSEST COMPARABLE WELL</span><strong>{active.well_name} <span>vs</span> {closest.offset_well.well_name}</strong></div>
+      <div className="correlation-comparison-heading"><span className="eyebrow">CLOSEST OFFSET</span><strong>{active.well_name} <span>vs</span> {closest.offset_well.well_name}</strong></div>
       <div className="correlation-comparison-grid">
-        <article className="correlation-comparison-card formation"><span>FORMATION</span><strong>{activeFormation}</strong><small>{offsetFormation} · {closest.formation_match === 'exact' ? 'Match' : `${closest.formation_match} match`}</small></article>
-        <article className="correlation-comparison-card depth"><span>DEPTH</span><strong>{activeDepth?.toLocaleString() ?? '—'} <small>vs</small> {offsetDepth?.toLocaleString() ?? '—'} m</strong><small>{depthLabel}{closest.depth_alignment_m == null ? '' : ` · ${Math.round(closest.depth_alignment_m)} m alignment`}</small></article>
-        <article className="correlation-comparison-card distance"><span>DISTANCE</span><strong>{closest.distance_km.toFixed(1)} <small>km</small></strong><small>{closest.offset_well.field ?? 'Field not recorded'}</small></article>
-        <article className="correlation-comparison-card events"><span>EVENT HISTORY</span><strong>{closest.historical_events.length}</strong><small>Matched historical {closest.historical_events.length === 1 ? 'event' : 'events'}</small></article>
+        <article className="correlation-comparison-card formation"><span>FORMATION</span><strong>{closest.formation_match === 'exact' ? 'MATCH' : humanize(closest.formation_match).toUpperCase()}</strong><small>{activeFormation} · {offsetFormation}</small></article>
+        <article className="correlation-comparison-card depth"><span>DEPTH ALIGNMENT</span><strong>{depthDifference == null ? '—' : `${Math.round(depthDifference)} m`}</strong><small>{depthLabel}</small></article>
+        <article className="correlation-comparison-card distance"><span>DISTANCE</span><strong>{closest.distance_km.toFixed(1)} <small>km</small></strong><small>Offset well</small></article>
+        <article className="correlation-comparison-card events"><span>EVENTS</span><strong>{closest.historical_events.length}</strong><small>Historical records</small></article>
       </div>
-      <div className="correlation-reasons"><span className="eyebrow">WHY THIS WELL MATTERS</span><div>{closest.comparison_reasons.slice(0, 3).map((reason) => <span className="evidence-chip" key={reason}>{reason}</span>)}</div></div>
-      <details className="well-correlation-details"><summary>Geology, reservoir and drilling comparison <span>{comparable.length} wells</span></summary>
-      <div className="well-correlation-scroll">
-      <table className="well-correlation-table">
-        <thead><tr><th scope="col">Parameter</th><th scope="col">
-          <span className="correlation-well-label">ACTIVE WELL</span><strong>{active.well_name}</strong>
-          <small>{active.active_depth_m?.toLocaleString() ?? '—'} m MD · {active.active_formation ?? 'Formation unavailable'}</small>
-        </th>{comparable.map((row) => <th scope="col" key={row.offset_well.id}>
-          <span className="correlation-well-label">OFFSET WELL</span><strong>{row.offset_well.well_name}</strong>
-          <small>{row.distance_km.toFixed(1)} km away · {row.formation_match} formation match</small>
-          <small>Geology {row.geological_similarity == null ? '—' : `${Math.round(row.geological_similarity * 100)}%`} · Reservoir {row.reservoir_similarity == null ? '—' : `${Math.round(row.reservoir_similarity * 100)}%`}</small>
-          <ul className="well-correlation-reasons" aria-label={`Why ${row.offset_well.well_name} is comparable`}>
-            {row.comparison_reasons.map((reason) => <li key={reason}>{reason}</li>)}
-          </ul>
-          <small className="correlation-source">{row.source_label}</small>
-        </th>)}</tr></thead>
-        <tbody>
-          {renderMetrics(DEPTH_METRICS)}
-          <tr><th scope="row">Formation</th>
-            <td>{activeInterval?.formation.name ?? active.active_formation ?? '—'}
-              {activeInterval && <small className="table-secondary">Normalized: {activeInterval.formation.normalized_name} · Aliases: {activeInterval.formation.aliases.join(', ') || '—'}</small>}
-            </td>
-            {comparable.map((row) => {
-              const interval = offsetInterval(row)
-              return <td key={row.offset_well.id}>{interval?.formation.name ?? '—'}
-                {interval && <small className="table-secondary">Normalized: {interval.formation.normalized_name} · Aliases: {interval.formation.aliases.join(', ') || '—'}</small>}
-              </td>
-            })}
-          </tr>
-          <tr><th scope="row">Lithology</th><td><DescriptorCell value={activeInterval?.lithology} /></td>{comparable.map((row) => <td key={row.offset_well.id}><DescriptorCell value={offsetInterval(row)?.lithology} /></td>)}</tr>
-          <tr><th scope="row">Geological zone</th><td><DescriptorCell value={activeInterval?.geological_zone} /></td>{comparable.map((row) => <td key={row.offset_well.id}><DescriptorCell value={offsetInterval(row)?.geological_zone} /></td>)}</tr>
-          <tr><th scope="row">Reservoir / zone</th><td><DescriptorCell value={activeInterval?.reservoir_zone} /></td>{comparable.map((row) => <td key={row.offset_well.id}><DescriptorCell value={offsetInterval(row)?.reservoir_zone} /></td>)}</tr>
-          <tr><th scope="row">Pressure indicator</th><td><DescriptorCell value={activeInterval?.pressure_indicator} /></td>{comparable.map((row) => <td key={row.offset_well.id}><DescriptorCell value={offsetInterval(row)?.pressure_indicator} /></td>)}</tr>
-          <tr><th scope="row">Porosity</th><td><DescriptorCell value={activeInterval?.porosity_percent} unit="%" /></td>{comparable.map((row) => <td key={row.offset_well.id}><DescriptorCell value={offsetInterval(row)?.porosity_percent} unit="%" /></td>)}</tr>
-          <tr><th scope="row">Permeability</th><td><DescriptorCell value={activeInterval?.permeability_md} unit=" mD" /></td>{comparable.map((row) => <td key={row.offset_well.id}><DescriptorCell value={offsetInterval(row)?.permeability_md} unit=" mD" /></td>)}</tr>
-          {renderMetrics(DRILLING_METRICS)}
-          <tr><th scope="row">Historical events</th><td>Current depth {active.active_depth_m?.toLocaleString() ?? '—'} m MD</td>{comparable.map((row) => <td key={row.offset_well.id}>
-            {row.historical_events.length === 0 ? <small className="table-secondary">No matched event in depth window</small> : <div className="well-correlation-events">
-              {row.historical_events.map((event) => <button type="button" key={event.event_id} onClick={() => setSelectedMatch(event)}>
-                <strong>{event.event_title}</strong><small>{event.historical_depth_m.toLocaleString()} m MD · {signedDepth(event.depth_difference_m)} · {event.source_document.filename} · p.{event.source_page ?? '—'}</small><span>View evidence</span>
-              </button>)}
-            </div>}
-          </td>)}</tr>
-          <tr><th scope="row">Cementing metadata</th><td>{activeParameters?.cementing_metadata ?? '—'}</td>{comparable.map((row) => <td key={row.offset_well.id}>{row.offset_drilling_parameters?.cementing_metadata ?? '—'}</td>)}</tr>
-        </tbody>
-      </table>
-      </div>
-      <div className="well-correlation-footer">Prototype depths use meters and comparable measured-depth values. Similarity heuristics are not expert validated or OIL-approved limits. Bars scale to each pair for display only.</div>
+      <details className="well-correlation-details"><summary>Geology, reservoir and drilling details <span>{comparable.length} wells</span></summary>
+        <details className="well-correlation-group"><summary>Depth and trajectory</summary>{renderTable(renderMetrics(DEPTH_METRICS))}</details>
+        <details className="well-correlation-group"><summary>Geology and lithology</summary>{renderTable(formationRows)}</details>
+        <details className="well-correlation-group"><summary>Reservoir</summary>{renderTable(reservoirRows)}</details>
+        <details className="well-correlation-group"><summary>Drilling parameters and historical events</summary>{renderTable(drillingRows)}</details>
+        <details className="well-correlation-group"><summary>Why these wells</summary><div className="well-correlation-reason-list">{comparable.map((row) => <div key={row.offset_well.id}><strong>{row.offset_well.well_name}</strong><span>{row.comparison_reasons.join(' · ')}</span></div>)}</div></details>
+        <details className="well-correlation-group"><summary>Comparison notes</summary><p className="well-correlation-footer">{correlation.data_notice} Similarity heuristics are for comparison and are not expert-validated limits. Bars scale to each pair for display only.</p></details>
       </details>
     </>}
     {selectedMatch && <EvidenceDrawer match={selectedMatch} relatedMatches={correlation.historical_events} onClose={() => setSelectedMatch(null)} />}

@@ -134,6 +134,7 @@ describe('trust and evidence layer', () => {
     expect(screen.queryByText(/Correlation response fallback excerpt/)).toBeNull()
     expect(screen.getByText('2,865 m')).toBeTruthy()
     expect(screen.getByText('+23 m')).toBeTruthy()
+    await user.click(screen.getByText('Match, source and confidence details'))
     expect(screen.getAllByText('4.2 km').length).toBeGreaterThan(0)
     expect(screen.getByText('91 / 100')).toBeTruthy()
     expect(screen.getByText('Adjusted mud program and monitored losses.')).toBeTruthy()
@@ -171,7 +172,7 @@ describe('trust and evidence layer', () => {
     expect(screen.getByText(/strongest eligible linked evidence confidence/)).toBeTruthy()
   })
 
-  it('keeps the decision-support banner and synthetic-data note visible in the global shell', async () => {
+  it('keeps one compact provenance strip visible in the global shell', async () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation((input: string) => Promise.resolve({
       ok: true,
       status: 200,
@@ -180,7 +181,7 @@ describe('trust and evidence layer', () => {
 
     render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><AppProvider><AppShell /></AppProvider></MemoryRouter>)
 
-    expect(await screen.findByText('DECISION SUPPORT')).toBeTruthy()
-    expect(screen.getByText('Source-linked history · engineer review required')).toBeTruthy()
+    expect(await screen.findByText('REPRESENTATIVE SYNTHETIC DATA')).toBeTruthy()
+    expect(screen.getAllByText('REPRESENTATIVE SYNTHETIC DATA')).toHaveLength(1)
   })
 })

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Activity, ArrowUpRight, BellRing, BookOpen, Database, MapPin, Radio, ShieldAlert } from 'lucide-react'
+import { Activity, ArrowUpRight, BookOpen, MapPin, Radio, ShieldAlert } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api, DASHBOARD_API_TIMEOUT_MS, queryString, withTransientRetries, type ActiveAlerts, type Alert, type Correlation, type NearbyWell, type OffsetMatch, type OffsetWellSummary } from '../lib/api'
 import { useApp } from '../lib/AppContext'
@@ -67,17 +67,17 @@ export function Dashboard() {
     : 0
 
   if (wellState === 'loading') return <DashboardLoadingSkeleton phase="startup" />
-  if (wellState === 'error') return <div className="page-stack"><PageHeading title="ANUBHAV" subtitle="Evidence-backed offset well intelligence." /><div className="context-error-note">Restore the ANUBHAV connection using TRY AGAIN above.</div></div>
-  if (wellState === 'empty') return <div className="page-stack"><PageHeading title="Operations overview" subtitle="Evidence-backed historical context for the active well." /><EmptyState title="No active well available" detail="The API returned an empty well dataset. An active well record is needed before offset relevance can be calculated." /></div>
-  if (!activeWell) return <div className="page-stack"><PageHeading title="Operations overview" subtitle="Evidence-backed historical context for the active well." /><EmptyState title="No active well configured" detail="The API returned well records, but none is marked as the active well." /></div>
+  if (wellState === 'error') return <div className="page-stack"><PageHeading title="ANUBHAV" subtitle="" /><div className="context-error-note">Restore the ANUBHAV connection using TRY AGAIN above.</div></div>
+  if (wellState === 'empty') return <div className="page-stack"><PageHeading title="Operations overview" subtitle="" /><EmptyState title="No active well available" detail="The API returned an empty well dataset. An active well record is needed before offset relevance can be calculated." /></div>
+  if (!activeWell) return <div className="page-stack"><PageHeading title="Operations overview" subtitle="" /><EmptyState title="No active well configured" detail="The API returned well records, but none is marked as the active well." /></div>
 
   return <div className="page-stack dashboard-page">
-    <PageHeading title="ANUBHAV" subtitle="Institutional memory for active drilling decisions." />
+    <PageHeading title="ANUBHAV" subtitle="" />
     {error && <ErrorState title="ANUBHAV is taking longer to respond." message="The ANUBHAV API could not be reached." retryLabel="TRY AGAIN" retry={() => void load()} />}
     {!data && !error ? <DashboardLoadingSkeleton phase="dashboard" /> : data && <>
       <section className="active-summary panel dashboard-well-hero" aria-label="Active well summary">
         <div className="active-summary-copy">
-          <div className="eyebrow">ACTIVE WELL <span className="active-summary-divider">/</span> {activeWell.field ?? 'FIELD UNASSIGNED'}</div>
+          <div className="eyebrow">ACTIVE WELL</div>
           <h2>{activeWell.well_name}</h2>
           <span className="active-summary-context">{data.correlation.total_matching_events} relevant historical {data.correlation.total_matching_events === 1 ? 'precedent' : 'precedents'} in the selected window</span>
         </div>
@@ -86,34 +86,31 @@ export function Dashboard() {
           <div className="active-summary-formation"><span>FORMATION</span><strong>{activeWell.current_formation?.name ?? 'Formation unavailable'}</strong></div>
           <span className="active-summary-status"><i />{humanize(activeWell.status)}</span>
         </div>
-        <Link className="active-summary-link" to="/active-well">Well details <ArrowUpRight size={15} /></Link>
       </section>
 
       <div className="kpi-grid">
-        <Kpi icon={<MapPin size={18} />} label="Nearby wells" value={String(data.nearby.length)} detail={`Within ${radiusKm} km`} accent="teal" />
-        <Kpi icon={<Database size={18} />} label="Historical events" value={data.eventCount.toLocaleString()} detail="Structured source records" accent="blue" />
-        <Kpi icon={<Activity size={18} />} label="Relevant precedents" value={String(data.correlation.total_matching_events)} detail={`${data.correlation.matched_wells.length} offset wells matched`} accent="amber" />
-        <Kpi icon={<BellRing size={18} />} label="Open signals" value={String(data.alerts.alerts.filter((alert) => alert.status === 'open' || alert.status === 'acknowledged').length)} detail="Awaiting engineer review" accent="red" />
+        <Kpi label="Nearby wells" value={String(data.nearby.length)} accent="green" />
+        <Kpi label="Historical events" value={data.eventCount.toLocaleString()} accent="green" />
+        <Kpi label="Relevant precedents" value={String(data.correlation.total_matching_events)} accent="green" />
+        <Kpi label="Open alerts" value={String(data.alerts.alerts.filter((alert) => alert.status === 'open' || alert.status === 'acknowledged').length)} accent="amber" />
       </div>
 
       <section className={`precedent-hero panel ${leadMatch?.relevance_band ?? 'none'}`} aria-labelledby="precedent-title">
-        <div className="precedent-hero-heading"><div><div className="eyebrow">HISTORICAL PRECEDENT</div><h2 id="precedent-title">{leadMatch?.event_title ?? data.alerts.title}</h2></div><span className={`precedent-relevance ${leadMatch?.relevance_band ?? 'none'}`}>{leadMatch ? `${humanize(leadMatch.relevance_band)} relevance` : 'No significant precedent'}</span></div>
+        <div className="precedent-hero-heading"><div><div className="eyebrow">HISTORICAL PRECEDENT</div><h2 id="precedent-title">{leadMatch ? humanize(leadMatch.event_type) : data.alerts.title}</h2></div><span className={`precedent-relevance ${leadMatch?.relevance_band ?? 'none'}`}>{leadMatch ? `${humanize(leadMatch.relevance_band)} historical relevance` : 'No significant precedent'}</span></div>
         {leadMatch ? <>
-          <div className="precedent-source-line"><strong>{leadMatch.offset_well.well_name}</strong><span>{formatDepth(leadMatch.historical_depth_m)} MD</span><span>{leadMatch.formation?.name ?? 'Formation not recorded'}</span></div>
+          <div className="precedent-source-line"><strong>{leadMatch.offset_well.well_name}</strong><span>{formatDepth(leadMatch.historical_depth_m)} MD</span><span>{formatDistance(leadMatch.distance_km)} away</span></div>
           <div className="precedent-facts" aria-label="Historical precedent details">
+            <span className="precedent-fact-chip">{leadMatch.formation_match === 'exact' || leadMatch.formation_match === 'alias' ? 'Same formation' : `${humanize(leadMatch.formation_match)} formation match`}</span>
             <span className="precedent-fact-chip">{signedDepth(leadMatch.depth_difference_m)}</span>
-            <span className="precedent-fact-chip">{formatDistance(leadMatch.distance_km)} away</span>
-            <span className="precedent-fact-chip">{leadMatch.formation_match === 'exact' ? 'Same formation' : `${humanize(leadMatch.formation_match)} formation`}</span>
-            <span className="precedent-fact-chip">{comparableEventCount} comparable {comparableEventCount === 1 ? 'event' : 'events'}</span>
+            <span className="precedent-fact-chip">{comparableEventCount} related {comparableEventCount === 1 ? 'event' : 'events'}</span>
           </div>
           <div className="precedent-actions">
             <button type="button" className="precedent-action" onClick={() => { setSelectedMatch(leadMatch); setSelectedAlert(leadAlert) }} aria-label={`View evidence and mitigation for ${leadMatch.event_title}`}>
               <BookOpen size={16} /> View evidence <ArrowUpRight size={16} />
             </button>
             <Link className="precedent-correlation-link" to="/active-well">View correlation <ArrowUpRight size={14} /></Link>
-            <details className="precedent-why"><summary>Why this match?</summary><p>{leadMatch.explanation}</p></details>
+            <details className="precedent-why"><summary>Why this matters</summary><div><p>{leadMatch.explanation}</p>{data.alerts.recommendation && <p><strong>{data.alerts.recommendation.label}:</strong> {data.alerts.recommendation.message}</p>}</div></details>
           </div>
-          {data.alerts.recommendation && <div className="precedent-recommendation"><span>{data.alerts.recommendation.label}</span><strong>{data.alerts.recommendation.message}</strong></div>}
         </> : <div className="precedent-empty"><p>No source-backed precedent in the selected radius and depth window.</p><Link to="/knowledge">Search historical records <ArrowUpRight size={14} /></Link></div>}
       </section>
 
@@ -121,21 +118,19 @@ export function Dashboard() {
         <section className="panel map-panel">
           <div className="panel-heading"><div><div className="eyebrow">OFFSET WELL MAP</div><h2>Nearby wells</h2></div><span className="panel-meta"><i className="map-radius-icon" />{radiusKm} km radius</span></div>
           <div className="map-wrap"><OffsetMap activeWell={activeWell} offsets={mapOffsets} events={displayedMatches} radiusKm={radiusKm} /></div>
-          <div className="map-legend"><span><i className="legend-active" />Active well · {activeWell.well_name}</span><span><i className="legend-offset" />Offset well</span><span><i className="legend-match" />Historical event</span></div>
+          <div className="map-legend"><span><i className="legend-active" />Active well</span><span><i className="legend-offset" />Offset well</span><span><i className="legend-radius" />Search radius</span></div>
         </section>
         <section className="panel nearby-list-panel" aria-labelledby="nearby-list-title">
           <div className="panel-heading"><div><div className="eyebrow">OFFSET REGISTER</div><h2 id="nearby-list-title">Nearby offsets</h2></div><span className="record-count">{data.nearby.length} WELLS</span></div>
           {data.nearby.length ? <div className="nearby-list">{data.nearby.map(({ well, distance_km }) => {
             const offset = mapOffsets.find((item) => item.id === well.id)
-            const matchedEvent = data.correlation.historical_events.find((event) => event.offset_well.id === well.id)
             const eventCount = offset?.matching_event_count ?? 0
             return <Link className="nearby-list-row" key={well.id} to="/offsets">
               <span className="nearby-list-marker"><MapPin size={16} /></span>
-              <span className="nearby-list-main"><strong>{well.well_name}</strong><small>{matchedEvent?.formation?.name ?? well.current_formation?.name ?? 'Formation not recorded'}</small></span>
-              <span className="nearby-list-meta"><strong>{formatDistance(distance_km)}</strong><small>{eventCount} relevant {eventCount === 1 ? 'event' : 'events'}</small></span>
+              <span className="nearby-list-main"><strong>{well.well_name}</strong><small>{eventCount} {eventCount === 1 ? 'event' : 'events'}</small></span>
+              <span className="nearby-list-meta"><strong>{formatDistance(distance_km)}</strong></span>
             </Link>
           })}</div> : <EmptyState title="No nearby offset wells in this radius" detail="Increase the radius to include more wells." />}
-          <div className="nearby-list-footer"><Link to="/offsets">Explore offset intelligence <ArrowUpRight size={14} /></Link></div>
         </section>
       </div>
 
@@ -187,7 +182,7 @@ export function Dashboard() {
 }
 
 export function PageHeading({ title, subtitle, action }: { title: string; subtitle: string; action?: ReactNode }) {
-  return <div className="page-heading"><div><div className="eyebrow">ANUBHAV / OFFSET WELL INTELLIGENCE</div><h1>{title}</h1><p>{subtitle}</p></div>{action && <div className="page-heading-action">{action}</div>}</div>
+  return <div className="page-heading"><div><div className="eyebrow">ANUBHAV</div><h1>{title}</h1>{subtitle && <p>{subtitle}</p>}</div>{action && <div className="page-heading-action">{action}</div>}</div>
 }
 
 const loadingMessages = [
@@ -206,7 +201,7 @@ function DashboardLoadingSkeleton({ phase }: { phase: 'startup' | 'dashboard' })
   }, [])
 
   return <div className="page-stack dashboard-page dashboard-skeleton" aria-busy="true">
-    <PageHeading title="ANUBHAV" subtitle="AI-powered offset well intelligence for current drilling decisions." />
+    <PageHeading title="ANUBHAV" subtitle="" />
     <div className="dashboard-connect-status" role="status" aria-live="polite">
       <span className="dashboard-connect-led" aria-hidden="true" />
       <div><span className="eyebrow">CONNECTING TO INTELLIGENCE</span><strong>{loadingMessages[messageIndex]}</strong></div>
@@ -228,12 +223,14 @@ function DashboardLoadingSkeleton({ phase }: { phase: 'startup' | 'dashboard' })
       <SkeletonShape className="skeleton-copy-line skeleton-copy-long" />
     </section>
 
-    <section className="panel dashboard-skeleton-live" aria-label="Live intelligence loading"><div className="dashboard-skeleton-section-head"><div><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-heading-line" /></div><SkeletonShape className="skeleton-status-pill" /></div><div className="dashboard-skeleton-live-grid">{Array.from({ length: 3 }, (_, index) => <SkeletonShape key={index} className="skeleton-live-card" />)}</div></section>
-
     <div className="dashboard-spatial-grid dashboard-skeleton-grid">
       <section className="panel"><div className="panel-heading"><div><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-heading-line" /></div></div><SkeletonShape className="skeleton-map" /></section>
       <section className="panel"><div className="panel-heading"><div><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-heading-line" /></div></div>{Array.from({ length: 3 }, (_, index) => <SkeletonShape key={index} className="skeleton-nearby-row" />)}</section>
     </div>
+
+    <section className="panel dashboard-skeleton-depth" aria-label="Depth correlation loading"><div className="dashboard-skeleton-section-head"><div><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-heading-line" /></div></div><SkeletonShape className="skeleton-map" /></section>
+
+    <section className="panel dashboard-skeleton-live" aria-label="Live intelligence loading"><div className="dashboard-skeleton-section-head"><div><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-heading-line" /></div><SkeletonShape className="skeleton-status-pill" /></div><div className="dashboard-skeleton-live-grid">{Array.from({ length: 3 }, (_, index) => <SkeletonShape key={index} className="skeleton-live-card" />)}</div></section>
 
     <div className="dashboard-insight-grid dashboard-skeleton-grid">
       <section className="panel"><div className="panel-heading"><div><SkeletonShape className="skeleton-label" /><SkeletonShape className="skeleton-heading-line" /></div></div>{Array.from({ length: 4 }, (_, index) => <SkeletonShape key={index} className="skeleton-event-row" />)}</section>
@@ -246,6 +243,6 @@ function SkeletonShape({ className }: { className: string }) {
   return <span className={`skeleton-shape ${className}`} aria-hidden="true" />
 }
 
-function Kpi({ icon, label, value, detail, accent }: { icon: ReactNode; label: string; value: string; detail: string; accent: string }) {
-  return <div className={`kpi-card ${accent}`}><div className="kpi-top"><span className="kpi-icon">{icon}</span><span className="kpi-label">{label}</span></div><div className="kpi-value">{value}</div><div className="kpi-detail">{detail}</div></div>
+function Kpi({ label, value, accent }: { label: string; value: string; accent: string }) {
+  return <div className={`kpi-card ${accent}`}><div className="kpi-label">{label}</div><div className="kpi-value">{value}</div></div>
 }

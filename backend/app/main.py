@@ -1,5 +1,7 @@
 """FastAPI application entry point."""
 
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -13,6 +15,12 @@ from app.intelligence_api import router as intelligence_router
 from app.live_api import router as live_router
 from app.predictive_api import router as predictive_router
 
+cors_origins = (
+    ["https://anubhav-nwis.vercel.app"]
+    if os.getenv("RENDER") == "true"
+    else settings.cors_origin_list
+)
+
 app = FastAPI(
     title="ANUBHAV API",
     version="0.1.0",
@@ -23,7 +31,7 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origin_list,
+    allow_origins=cors_origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["*"],

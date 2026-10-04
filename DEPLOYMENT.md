@@ -61,7 +61,7 @@ The production container runs these commands on startup. The seed inserts only t
 
 ## First deployment and redeployment
 
-1. Reauthenticate GitHub with `gh auth login -h github.com`, create a **private, project-scoped Git repository** for this workspace, add it as the remote, and push `main` (currently at `9c5831e`). Do not publish source code publicly as part of the SIH deployment.
+1. Reauthenticate GitHub with `gh auth login -h github.com`, create a **private, project-scoped Git repository** for this workspace, add it as the remote, and push the current `main` branch. Do not publish source code publicly as part of the SIH deployment.
 2. Create a dedicated Supabase PostgreSQL project. Copy its TLS-enabled Session Pooler URL for Render's `DATABASE_URL` setting.
 3. Connect the existing Vercel project `anubhav-nwis` to the private repository, set root directory `frontend`, and note its production origin after the first deployment.
 4. Connect the repository to Render using the root `render.yaml` Blueprint. Set the Supabase URL and exact Vercel origin in Render, then deploy and wait for `/api/health` to report a connected database.

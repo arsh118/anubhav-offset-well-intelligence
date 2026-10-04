@@ -2,6 +2,12 @@
 .env.*
 !.env.example
 .DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
 .vercel/
 .venv/
 __pycache__/
@@ -14,3 +20,6 @@ __pycache__/
 *.db
 backend/.coverage
 backend/data/uploads/
+node_modules/
+build/
+dist/

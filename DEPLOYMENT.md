@@ -2,7 +2,7 @@
 
 ## Current status
 
-**Not live (checked 2026-10-04).** No public Vercel frontend, Render API, or Supabase database URL has been verified. Local quality checks and the local PostgreSQL-backed demo workflow passed, but the production and clean-browser checks below remain pending. The project has no project-scoped Git repository; the Vercel and GitHub CLIs are unauthenticated, no deployment tokens are available in this shell, and Render/Supabase CLIs are not installed. A provider account and a connected project repository are still required to create the public services. Do not share a URL as the SIH evaluation deployment until the checks below pass against the deployed services.
+**Not live (checked 2026-10-04).** No public Vercel frontend, Render API, or Supabase database URL has been verified. Local quality checks and the local PostgreSQL-backed demo workflow passed, but the production and clean-browser checks below remain pending. A project-scoped Git repository now exists locally on `main`; release commit `9c5831e` is present. It has no remote because the GitHub CLI token is invalid. The Vercel CLI is authenticated and the exact project `anubhav-nwis` has been created and linked from `frontend/`, but it has no deployment and is not connected to Git. No production Supabase URL or Render service configuration is available, and Render/Supabase CLIs are not installed. Do not share a URL as the SIH evaluation deployment until the checks below pass against the deployed services.
 
 The intended topology is:
 
@@ -10,11 +10,11 @@ The intended topology is:
 Browser → Vercel static frontend → Render API → Supabase PostgreSQL
 ```
 
-The repository currently has no project-scoped Git repository. Render Blueprint deployment requires this project to be available in the chosen Git provider. Keep the repository private unless public source publication is intentionally approved.
+Render Blueprint deployment requires this project to be pushed to the chosen Git provider. Keep the repository private unless public source publication is intentionally approved. GitHub CLI authentication must be restored with `gh auth login -h github.com` before creating the private remote and pushing `main`.
 
 ## Frontend: Vercel
 
-Create a Vercel project with the project root set to `frontend`. Use Node 20 or newer, `npm ci` to install, `npm run build` to build, and `dist` as the output directory. `frontend/vercel.json` keeps React Router URLs working on direct visits.
+The Vercel project `anubhav-nwis` already exists and is linked in `frontend/`. Before deployment, connect the private Git repository and set its Root Directory to `frontend`, Node.js to 20 or newer, Install Command to `npm ci`, Build Command to `npm run build`, and Output Directory to `dist`. `frontend/vercel.json` keeps React Router URLs working on direct visits.
 
 Set this **Production** build environment variable in Vercel:
 
@@ -61,9 +61,9 @@ The production container runs these commands on startup. The seed inserts only t
 
 ## First deployment and redeployment
 
-1. Create a **private, project-scoped Git repository** for this workspace and push the project source. Do not publish source code publicly as part of the SIH deployment.
+1. Reauthenticate GitHub with `gh auth login -h github.com`, create a **private, project-scoped Git repository** for this workspace, add it as the remote, and push `main` (currently at `9c5831e`). Do not publish source code publicly as part of the SIH deployment.
 2. Create a dedicated Supabase PostgreSQL project. Copy its TLS-enabled Session Pooler URL for Render's `DATABASE_URL` setting.
-3. Create the Vercel project with root directory `frontend` and note its production origin.
+3. Connect the existing Vercel project `anubhav-nwis` to the private repository, set root directory `frontend`, and note its production origin after the first deployment.
 4. Connect the repository to Render using the root `render.yaml` Blueprint. Set the Supabase URL and exact Vercel origin in Render, then deploy and wait for `/api/health` to report a connected database.
 5. Set Vercel's `VITE_API_BASE_URL` to `https://<render-service-host>/api`, deploy the frontend, and confirm the production domain. If it differs from the origin in Render, update `CORS_ALLOWED_ORIGINS` and redeploy Render. Recheck health and browser network requests.
 

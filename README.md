@@ -6,7 +6,7 @@ See [SIH26121_REQUIREMENTS.md](SIH26121_REQUIREMENTS.md) for a capability-by-cap
 
 The demo uses **Representative Synthetic Demo Data** and does not access confidential OIL data or connect to a live OIL system. ANUBHAV surfaces historical precedents for engineer review; it is decision support, not a drilling control system or incident prediction.
 
-**Release status: NOT LIVE.** Local checks pass, but no public Vercel frontend, Render API, or Supabase database URL has been verified. See [DEPLOYMENT.md](DEPLOYMENT.md) for the current setup requirements and release gate.
+**Release status: NOT LIVE.** Local checks pass. The `anubhav-nwis` Vercel project is created but not deployed; GitHub authentication is invalid, and no Render API or Supabase database is configured. No public URL is ready for SIH evaluation. See [DEPLOYMENT.md](DEPLOYMENT.md) for the exact remaining setup and release gate.
 
 ## Requirements
 

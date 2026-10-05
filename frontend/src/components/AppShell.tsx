@@ -4,6 +4,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useApp } from '../lib/AppContext'
 import { ErrorState } from './Feedback'
 import { MethodologyDrawer } from './MethodologyDrawer'
+import { StartupProgressOverlay } from './StartupProgressOverlay'
 
 const navigation = [
   { to: '/', label: 'Dashboard', icon: Layers3, end: true },
@@ -70,5 +71,6 @@ export function AppShell() {
       </main>
     </div>
     {methodologyOpen && activeWellId && <MethodologyDrawer activeWellId={activeWellId} radiusKm={radiusKm} depthWindowM={depthWindowM} onClose={() => setMethodologyOpen(false)} />}
+    <StartupProgressOverlay apiStatus={apiStatus} />
   </div>
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from '../components/AppShell'
 import { AppProvider } from '../lib/AppContext'
@@ -38,7 +38,9 @@ describe('dashboard initialization', () => {
     renderDashboard()
 
     expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeTruthy()
-    expect(screen.getByRole('status').textContent).toContain('Connecting to ANUBHAV intelligence...')
+    expect(screen.getByRole('heading', { name: 'Preparing AI Safety Intelligence' })).toBeTruthy()
+    expect(Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'))).toBeLessThan(100)
+    expect(screen.getByText('Connecting to ANUBHAV intelligence...')).toBeTruthy()
     expect(screen.queryByText('No active well available')).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/health$/)
@@ -46,9 +48,12 @@ describe('dashboard initialization', () => {
     await act(async () => { resolveHealth(jsonResponse({ status: 'ok', database: 'connected' })) })
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
     expect(String(fetchMock.mock.calls[1][0])).toMatch(/\/wells\?limit=500$/)
+    expect(Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'))).toBeLessThan(100)
     expect(screen.queryByText('No active well available')).toBeNull()
 
     await act(async () => { resolveWells(jsonResponse([])) })
+    expect(Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'))).toBeLessThan(100)
+    await waitFor(() => expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('100'))
     expect(await screen.findByText('No active well available')).toBeTruthy()
     expect(screen.getByText('The API returned an empty well dataset. An active well record is needed before offset relevance can be calculated.')).toBeTruthy()
   })
@@ -67,5 +72,54 @@ describe('dashboard initialization', () => {
     expect(screen.getByText('ANUBHAV is taking longer to respond.')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'TRY AGAIN' })).toBeTruthy()
     expect(screen.queryByText('No active well available')).toBeNull()
+    expect(screen.queryByRole('progressbar')).toBeNull()
+
+    fetchMock.mockImplementation((input) => {
+      const url = String(input)
+      if (url.endsWith('/health')) return Promise.resolve(jsonResponse({ status: 'ok', database: 'connected' }))
+      if (url.endsWith('/wells?limit=500')) return Promise.resolve(jsonResponse([]))
+      return Promise.resolve(jsonResponse([]))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }))
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(5)
+    await act(async () => { await vi.advanceTimersByTimeAsync(650) })
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('100')
+    expect(screen.getByText('No active well available')).toBeTruthy()
+  })
+
+  it('retries after a cold-start response and waits for the wells response before completing progress', async () => {
+    vi.useFakeTimers()
+    let resolveWells!: (response: Response) => void
+    let healthAttempts = 0
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/health')) {
+        healthAttempts += 1
+        return healthAttempts === 1
+          ? Promise.reject(new TypeError('service is waking'))
+          : Promise.resolve(jsonResponse({ status: 'ok', database: 'connected' }))
+      }
+      if (url.endsWith('/wells?limit=500')) return new Promise<Response>((resolve) => { resolveWells = resolve })
+      return Promise.resolve(jsonResponse([]))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderDashboard()
+    expect(Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'))).toBeLessThan(100)
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000) })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'))).toBeLessThan(100)
+
+    await act(async () => { resolveWells(jsonResponse([])) })
+    expect(Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'))).toBeLessThan(100)
+    await act(async () => { await vi.advanceTimersByTimeAsync(650) })
+    expect(screen.getByRole('progressbar').getAttribute('aria-valuenow')).toBe('100')
+    await act(async () => { await vi.advanceTimersByTimeAsync(180) })
+    expect(screen.queryByRole('progressbar')).toBeNull()
+    expect(screen.getByText('No active well available')).toBeTruthy()
   })
 })

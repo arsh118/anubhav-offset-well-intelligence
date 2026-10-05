@@ -1655,6 +1655,42 @@ button:disabled { opacity: .48; cursor: not-allowed; }
   .skeleton-shape, .live-loading-skeleton i, .dashboard-connect-led { animation: none; }
 }
 
+/* Startup readiness overlay: estimated progress stays below complete until the API responds. */
+.startup-overlay { position: fixed; z-index: 160; inset: 0; display: grid; place-items: center; padding: 22px; background: rgba(28, 54, 46, .20); backdrop-filter: blur(2px); opacity: 1; transition: opacity 420ms ease; }
+.startup-overlay.is-fading { pointer-events: none; opacity: 0; }
+.startup-card { display: grid; width: min(480px, 100%); justify-items: center; padding: 30px 34px 25px; border: 1px solid #d8e5de; border-radius: 15px; background: rgba(255,255,255,.98); box-shadow: 0 24px 75px rgba(21, 48, 39, .2), 0 4px 14px rgba(21, 48, 39, .08); text-align: center; animation: startup-card-in 340ms ease-out both; }
+.startup-icon { display: grid; width: 42px; height: 42px; margin-bottom: 13px; place-items: center; color: #26795f; border: 1px solid #d5e9df; border-radius: 12px; background: #eff7f2; }
+.startup-kicker { color: #698278; font-size: 9px; font-weight: 750; letter-spacing: .13em; }
+.startup-card h2 { margin: 9px 0 0; color: #183c32; font-size: 21px; font-weight: 680; letter-spacing: -.025em; line-height: 1.25; }
+.startup-description { margin: 9px 0 0; color: #667976; font-size: 12px; line-height: 1.6; }
+.startup-progress-wrap { display: grid; justify-items: center; gap: 7px; margin: 20px 0 14px; }
+.startup-progress-circle { position: relative; display: grid; width: 96px; height: 96px; place-items: center; }
+.startup-progress-circle svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform: rotate(-90deg); }
+.startup-progress-circle circle { fill: none; }
+.startup-progress-track { stroke: #e8efeb; stroke-width: 5; }
+.startup-progress-value { stroke: #278466; stroke-width: 5; stroke-linecap: round; transition: stroke-dashoffset 180ms ease-out; }
+.startup-progress-orbit { stroke: #8abda7; stroke-width: 1.6; stroke-dasharray: 3 9; stroke-linecap: round; transform-box: fill-box; transform-origin: center; animation: startup-orbit 5s linear infinite; }
+.startup-progress-circle > span { display: flex; align-items: baseline; color: #214b3e; }
+.startup-progress-circle strong { font-size: 23px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.startup-progress-circle small { margin-left: 1px; color: #668078; font-size: 11px; font-weight: 650; }
+.startup-estimate-label { color: #7c8f88; font-size: 10px; font-weight: 600; letter-spacing: .015em; }
+.startup-status { display: flex; min-height: 37px; align-items: center; justify-content: center; gap: 8px; margin: 0; padding: 8px 11px; color: #326652; border: 1px solid #e0eee6; border-radius: 7px; background: #f5faf6; font-size: 11px; font-weight: 630; line-height: 1.4; }
+.startup-status i { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: #409b75; box-shadow: 0 0 0 3px rgba(64, 155, 117, .12); animation: startup-status-pulse 1.8s ease-in-out infinite; }
+.startup-keep-open { margin: 15px 0 0; color: #7a8984; font-size: 10px; line-height: 1.55; }
+.startup-keep-open strong { color: #4e665d; font-weight: 680; }
+@keyframes startup-orbit { to { transform: rotate(360deg); } }
+@keyframes startup-status-pulse { 50% { opacity: .5; box-shadow: 0 0 0 5px rgba(64, 155, 117, .05); } }
+@keyframes startup-card-in { from { opacity: 0; transform: translateY(7px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (max-width: 480px) {
+  .startup-overlay { padding: 16px; }
+  .startup-card { padding: 25px 20px 22px; }
+  .startup-card h2 { font-size: 19px; }
+  .startup-status { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .startup-overlay, .startup-card, .startup-progress-orbit, .startup-status i { animation: none; transition: none; }
+}
+
 /* Part 17: judge-first drilling intelligence workspace. */
 :root {
   color: #17272d;

@@ -38,7 +38,7 @@ describe('dashboard initialization', () => {
     renderDashboard()
 
     expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Preparing AI Safety Intelligence' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Preparing Safety Intelligence' })).toBeTruthy()
     expect(Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'))).toBeLessThan(100)
     expect(screen.getByText('Connecting to ANUBHAV intelligence...')).toBeTruthy()
     expect(screen.queryByText('No active well available')).toBeNull()

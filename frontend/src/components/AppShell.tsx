@@ -1,8 +1,9 @@
-import { Activity, Bell, BookOpen, ChevronDown, FileText, Layers3, MapPinned, ShieldCheck, Waves, CircleHelp } from 'lucide-react'
+import { Activity, Bell, BookOpen, ChevronDown, FileText, Layers3, MapPinned, ShieldCheck, CircleHelp } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useApp } from '../lib/AppContext'
 import { ErrorState } from './Feedback'
+import { BrandLogo } from './BrandLogo'
 import { MethodologyDrawer } from './MethodologyDrawer'
 import { StartupProgressOverlay } from './StartupProgressOverlay'
 
@@ -31,7 +32,7 @@ export function AppShell() {
 
   return <div className="app-shell">
     <aside className="sidebar">
-      <div className="brand-lockup"><div className="brand-mark"><Waves size={22} strokeWidth={1.8} /></div><div><div className="brand-name">ANUBHAV</div><div className="brand-caption">OFFSET WELL INTELLIGENCE</div></div></div>
+      <div className="brand-lockup"><BrandLogo className="brand-logo" /></div>
       <div className="sidebar-rule" />
       <div className="nav-section-label">WORKSPACE</div>
       <nav className="main-nav" aria-label="Main navigation">

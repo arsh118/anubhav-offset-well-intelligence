@@ -22,7 +22,7 @@ function wellIcon(kind: 'active' | 'offset', selected = false, dashboardPresenta
 function FitDashboardMap({ bounds }: { bounds: L.LatLngBounds }) {
   const map = useMap()
   useEffect(() => {
-    map.fitBounds(bounds, { padding: [30, 30], maxZoom: 10 })
+    map.fitBounds(bounds, { padding: [30, 30], maxZoom: 11 })
   }, [bounds, map])
   return null
 }
@@ -32,11 +32,13 @@ export function OffsetMap({ activeWell, offsets, radiusKm, selectedWellId, onSel
   const mapBounds = useMemo(() => {
     if (!dashboardPresentation || activeWell.latitude == null || activeWell.longitude == null) return null
     const center = L.latLng(activeWell.latitude, activeWell.longitude)
-    const radiusBounds = center.toBounds(Math.max(radiusKm, 1) * 2_000)
+    const farthestOffsetKm = offsets.reduce((farthest, offset) => {
+      if (offset.latitude == null || offset.longitude == null) return farthest
+      return Math.max(farthest, center.distanceTo([offset.latitude, offset.longitude]) / 1_000)
+    }, 0)
+    const fittingRadiusKm = Math.min(Math.max(radiusKm, 1), Math.max(farthestOffsetKm + 3, radiusKm * 0.65))
+    const radiusBounds = center.toBounds(fittingRadiusKm * 2_000)
     const bounds = L.latLngBounds([radiusBounds.getSouthWest(), radiusBounds.getNorthEast()])
-    offsets.forEach((offset) => {
-      if (offset.latitude != null && offset.longitude != null) bounds.extend([offset.latitude, offset.longitude])
-    })
     return bounds
   }, [activeWell.latitude, activeWell.longitude, dashboardPresentation, offsets, radiusKm])
 

@@ -2823,3 +2823,19 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .offset-depth-current .current-depth-readout { padding-right: 14px; padding-left: 14px; }
   .offset-depth-current .current-depth-readout strong { font-size: 23px; }
 }
+
+/* Dashboard map content markers and labels. */
+.map-panel .panel-heading .eyebrow { display: flex; align-items: center; gap: 5px; }
+.dashboard-active-star { display: grid; width: 28px; height: 28px; margin: 0; place-items: center; color: #c9332b; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: 27px; line-height: 1; text-shadow: -1px -1px #fff, 1px -1px #fff, -1px 1px #fff, 1px 1px #fff, 0 1px 4px rgba(37,49,43,.45); }
+.dashboard-offset { width: 17px; height: 17px; margin: 3px; border: 2px solid #fff; background: #176be6; box-shadow: 0 1px 5px rgba(24,48,76,.36); }
+.dashboard-offset i { display: none; }
+.leaflet-tooltip.map-distance-label { padding: 4px 6px !important; border: 1px solid rgba(203,215,211,.8) !important; background: rgba(255,255,255,.94) !important; box-shadow: 0 1px 4px rgba(34,55,49,.16) !important; }
+.leaflet-tooltip.map-distance-label::before { display: none; }
+.map-well-label { display: grid; gap: 1px; color: #172922; line-height: 1.15; white-space: nowrap; }
+.map-well-label strong { font-size: 12px; font-weight: 720; }
+.map-well-label span { font-size: 11px; font-weight: 620; }
+.leaflet-control-scale-line { color: #34483f !important; border-color: #40554b !important; background: rgba(255,255,255,.88) !important; font-size: 10px !important; }
+.dashboard-map-legend .legend-active { width: 14px; height: 14px; border: 0; border-radius: 0; background: transparent; }
+.dashboard-map-legend .legend-active::after { color: #c9332b; content: '★'; font-size: 17px; line-height: 14px; }
+.dashboard-map-legend .legend-offset { width: 9px; height: 9px; border: 1px solid #fff; background: #176be6; box-shadow: 0 0 0 1px rgba(23,107,230,.26); }
+.dashboard-map-legend .legend-radius { width: 12px; height: 12px; border: 1px dashed #568b72; border-radius: 50%; background: transparent; }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Activity, ArrowUpRight, BookOpen, MapPin, Radio, ShieldAlert } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowUpRight, BookOpen, Drill, FileText, Link2, MapPin, Radio, ShieldAlert } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api, DASHBOARD_API_TIMEOUT_MS, queryString, withTransientRetries, type ActiveAlerts, type Alert, type Correlation, type NearbyWell, type OffsetMatch, type OffsetWellSummary } from '../lib/api'
 import { useApp } from '../lib/AppContext'
@@ -89,10 +89,10 @@ export function Dashboard() {
       </section>
 
       <div className="kpi-grid">
-        <Kpi label="Nearby wells" value={String(data.nearby.length)} accent="green" />
-        <Kpi label="Historical events" value={data.eventCount.toLocaleString()} accent="green" />
-        <Kpi label="Relevant precedents" value={String(data.correlation.total_matching_events)} accent="green" />
-        <Kpi label="Open alerts" value={String(data.alerts.alerts.filter((alert) => alert.status === 'open' || alert.status === 'acknowledged').length)} accent="amber" />
+        <Kpi icon={<Drill size={19} />} label="Nearby wells" value={String(data.nearby.length)} accent="green" />
+        <Kpi icon={<FileText size={19} />} label="Historical events" value={data.eventCount.toLocaleString()} accent="green" />
+        <Kpi icon={<Link2 size={19} />} label="Relevant precedents" value={String(data.correlation.total_matching_events)} accent="green" />
+        <Kpi icon={<AlertTriangle size={19} />} label="Open alerts" value={String(data.alerts.alerts.filter((alert) => alert.status === 'open' || alert.status === 'acknowledged').length)} accent="red" />
       </div>
 
       <section className={`precedent-hero panel ${leadMatch?.relevance_band ?? 'none'}`} aria-labelledby="precedent-title">
@@ -116,9 +116,9 @@ export function Dashboard() {
 
       <div className="dashboard-spatial-grid">
         <section className="panel map-panel">
-          <div className="panel-heading"><div><div className="eyebrow">OFFSET WELL MAP</div><h2>Nearby wells</h2></div><span className="panel-meta"><i className="map-radius-icon" />{radiusKm} km radius</span></div>
-          <div className="map-wrap"><OffsetMap activeWell={activeWell} offsets={mapOffsets} radiusKm={radiusKm} /></div>
-          <div className="map-legend"><span><i className="legend-active" />Active well</span><span><i className="legend-offset" />Offset well</span><span><i className="legend-radius" />Search radius</span></div>
+          <div className="panel-heading"><div><div className="eyebrow"><MapPin size={13} /> OFFSET WELL MAP</div><h2>Nearby wells within {radiusKm} km radius</h2></div><span className="panel-meta"><i className="map-radius-icon" />{radiusKm} km radius</span></div>
+          <div className="map-wrap"><OffsetMap activeWell={activeWell} offsets={mapOffsets} radiusKm={radiusKm} dashboardPresentation /></div>
+          <div className="map-legend dashboard-map-legend"><span><i className="legend-active" />Active well ({activeWell.well_name})</span><span><i className="legend-offset" />Nearby offset well</span><span><i className="legend-radius" />Search radius</span></div>
         </section>
         <section className="panel nearby-list-panel" aria-labelledby="nearby-list-title">
           <div className="panel-heading"><div><div className="eyebrow">OFFSET REGISTER</div><h2 id="nearby-list-title">Nearby offsets</h2></div><span className="record-count">{data.nearby.length} WELLS</span></div>
@@ -131,6 +131,7 @@ export function Dashboard() {
               <span className="nearby-list-meta"><strong>{formatDistance(distance_km)}</strong></span>
             </Link>
           })}</div> : <EmptyState title="No nearby offset wells in this radius" detail="Increase the radius to include more wells." />}
+          {data.nearby.length > 0 && <Link className="nearby-list-footer" to="/offsets">View all nearby wells <ArrowUpRight size={15} /></Link>}
         </section>
       </div>
 
@@ -243,6 +244,6 @@ function SkeletonShape({ className }: { className: string }) {
   return <span className={`skeleton-shape ${className}`} aria-hidden="true" />
 }
 
-function Kpi({ label, value, accent }: { label: string; value: string; accent: string }) {
-  return <div className={`kpi-card ${accent}`}><div className="kpi-label">{label}</div><div className="kpi-value">{value}</div></div>
+function Kpi({ label, value, accent, icon }: { label: string; value: string; accent: string; icon: ReactNode }) {
+  return <div className={`kpi-card ${accent}`}><div className="kpi-top"><div className="kpi-label">{label}</div><span className="kpi-icon" aria-hidden="true">{icon}</span></div><div className="kpi-value">{value}</div></div>
 }

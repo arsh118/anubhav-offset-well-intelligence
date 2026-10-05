@@ -5,11 +5,14 @@ import type { OffsetWellSummary, Well } from '../lib/api'
 import { OffsetMap } from './OffsetMap'
 
 vi.mock('react-leaflet', () => ({
-  MapContainer: ({ children, className }: { children: React.ReactNode; className?: string }) => <div className={className}>{children}</div>,
+  MapContainer: ({ children, className, zoomSnap }: { children: React.ReactNode; className?: string; zoomSnap?: number }) => <div className={className} data-zoom-snap={zoomSnap}>
+    {children}
+  </div>,
   TileLayer: () => null,
   Circle: () => null,
-  Marker: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Polyline: () => <div data-testid="map-connection" />,
+  Marker: ({ children, position, icon }: { children: React.ReactNode; position: [number, number]; icon: { options: { html: string } } }) => <div data-testid="well-marker" data-position={position.join(',')} data-icon-html={icon.options.html}>{children}</div>,
+  CircleMarker: ({ center }: { center: [number, number] }) => <div data-testid="recorded-site" data-position={center.join(',')} />,
+  Polyline: ({ pathOptions }: { pathOptions: { dashArray: string } }) => <div data-testid="map-connection" data-dash={pathOptions.dashArray} />,
   ScaleControl: () => <div data-testid="map-scale-control" />,
   Popup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Tooltip: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
@@ -43,7 +46,7 @@ describe('operational offset map popup', () => {
     expect(screen.getByText('/offsets?well=well-02')).toBeTruthy()
   })
 
-  it('shows live offset distances, dashed connections, radius scaling, and the active well labels in dashboard presentation', () => {
+  it('spaces dashboard offset markers around the active well while retaining source coordinates and dotted links', () => {
     const secondOffset: OffsetWellSummary = {
       ...offset, id: 'well-03', well_name: 'ANB-03', latitude: 27.42, longitude: 95.22, distance_km: 6.1,
     }
@@ -53,8 +56,23 @@ describe('operational offset map popup', () => {
 
     const labels = Array.from(container.querySelectorAll('.map-well-label')).map((label) => label.textContent)
     expect(labels).toEqual(['ANB-024.2 km', 'ANB-036.1 km'])
-    expect(screen.getAllByTestId('map-connection')).toHaveLength(2)
+    const markers = Array.from(container.querySelectorAll<HTMLElement>('[data-testid="well-marker"]'))
+    const activeMarker = markers.find((marker) => marker.dataset.iconHtml?.includes('dashboard-active-star'))
+    const offsetMarkers = markers.filter((marker) => marker.dataset.iconHtml?.includes('dashboard-offset'))
+    expect(offsetMarkers).toHaveLength(2)
+    expect(screen.getAllByTestId('recorded-site')).toHaveLength(2)
+    expect(activeMarker).toBeTruthy()
+    const activePosition = activeMarker?.dataset.position?.split(',').map(Number) ?? []
+    const displayDistances = offsetMarkers.map((marker) => {
+      const [latitude, longitude] = marker.dataset.position?.split(',').map(Number) ?? []
+      const latitudeKm = (latitude - activePosition[0]) * 111
+      const longitudeKm = (longitude - activePosition[1]) * 111 * Math.cos(activePosition[0] * Math.PI / 180)
+      return Math.hypot(latitudeKm, longitudeKm)
+    })
+    expect(displayDistances.every((distance) => distance >= 16)).toBe(true)
+    expect(screen.getAllByTestId('map-connection').filter((line) => line.getAttribute('data-dash') === '4 6')).toHaveLength(2)
     expect(screen.getByTestId('map-scale-control')).toBeTruthy()
+    expect(container.querySelector('.leaflet-map')?.getAttribute('data-zoom-snap')).toBe('0.25')
     expect(screen.getByText('ANB-01 · Active')).toBeTruthy()
   })
 })

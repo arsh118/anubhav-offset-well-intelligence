@@ -118,7 +118,7 @@ export function Dashboard() {
         <section className="panel map-panel">
           <div className="panel-heading"><div><div className="eyebrow"><MapPin size={13} /> OFFSET WELL MAP</div><h2>Nearby wells within {radiusKm} km radius</h2></div><span className="panel-meta"><i className="map-radius-icon" />{radiusKm} km radius</span></div>
           <div className="map-wrap"><OffsetMap activeWell={activeWell} offsets={mapOffsets} radiusKm={radiusKm} dashboardPresentation /></div>
-          <div className="map-legend dashboard-map-legend"><span><i className="legend-active" />Active well ({activeWell.well_name})</span><span><i className="legend-offset" />Nearby offset well</span><span><i className="legend-radius" />Search radius</span></div>
+          <div className="map-legend dashboard-map-legend"><span><i className="legend-active" />Active well ({activeWell.well_name})</span><span><i className="legend-offset" />Nearby offset well</span><span><i className="legend-site" />Recorded site</span><span><i className="legend-radius" />Search radius</span></div>
         </section>
         <section className="panel nearby-list-panel" aria-labelledby="nearby-list-title">
           <div className="panel-heading"><div><div className="eyebrow">OFFSET REGISTER</div><h2 id="nearby-list-title">Nearby offsets</h2></div><span className="record-count">{data.nearby.length} WELLS</span></div>

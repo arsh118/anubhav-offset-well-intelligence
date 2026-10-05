@@ -2838,4 +2838,5 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .dashboard-map-legend .legend-active { width: 14px; height: 14px; border: 0; border-radius: 0; background: transparent; }
 .dashboard-map-legend .legend-active::after { color: #c9332b; content: '★'; font-size: 17px; line-height: 14px; }
 .dashboard-map-legend .legend-offset { width: 9px; height: 9px; border: 1px solid #fff; background: #176be6; box-shadow: 0 0 0 1px rgba(23,107,230,.26); }
+.dashboard-map-legend .legend-site { width: 8px; height: 8px; border: 1.5px solid #66776e; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(255,255,255,.8); }
 .dashboard-map-legend .legend-radius { width: 12px; height: 12px; border: 1px dashed #568b72; border-radius: 50%; background: transparent; }
